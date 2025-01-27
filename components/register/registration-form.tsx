@@ -84,7 +84,11 @@ export function RegistrationForm({ onSubmit, isSubmitting }: RegistrationFormPro
           <Checkbox id="terms" checked={agreeTerms} onCheckedChange={() => setAgreeTerms(!agreeTerms)} />
           <Label htmlFor="terms">I agree to the terms and token economy</Label>
         </div>
-        <Button type="submit" disabled={isSubmitting} className="w-full">
+        <Button 
+          type="submit" 
+          disabled={isSubmitting} 
+          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white transition-all duration-200 disabled:opacity-50"
+        >
           {isSubmitting ? "Signing Up..." : "Sign Up"}
         </Button>
         <div className="mt-6">
@@ -97,16 +101,25 @@ export function RegistrationForm({ onSubmit, isSubmitting }: RegistrationFormPro
             </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-4">
-            <Button variant="outline" className="w-full">
+            <Button 
+              variant="outline" 
+              className="w-full border-indigo-600 hover:bg-indigo-600/10 text-white transition-all duration-200"
+            >
               <FaGoogle className="mr-2 h-4 w-4" />
               Google
             </Button>
-            <Button variant="outline" className="w-full">
+            <Button 
+              variant="outline" 
+              className="w-full border-purple-600 hover:bg-purple-600/10 text-white transition-all duration-200"
+            >
               <FaGithub className="mr-2 h-4 w-4" />
               GitHub
             </Button>
           </div>
-          <Button variant="outline" className="w-full mt-4">
+          <Button 
+            variant="outline" 
+            className="w-full mt-4 border-indigo-600 hover:bg-indigo-600/10 text-white transition-all duration-200"
+          >
             Connect Web3 Wallet
           </Button>
         </div>

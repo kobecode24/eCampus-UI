@@ -13,7 +13,7 @@ import { authService } from "@/services/api"
 import confetti from 'canvas-confetti'
 
 function Confetti() {
-  useEffect(() => {
+  useEffect(() => { 
     confetti({
       particleCount: 100,
       spread: 70,

@@ -121,14 +121,27 @@ export function ForumHeader() {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuItem asChild>
+                <DropdownMenuContent 
+                  className="w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" 
+                  align="end" 
+                  forceMount
+                >
+                  <DropdownMenuItem 
+                    className="hover:bg-gray-100 dark:hover:bg-gray-700"
+                    asChild
+                  >
                     <Link href="/dev-forum/me">Profile</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem 
+                    className="hover:bg-gray-100 dark:hover:bg-gray-700"
+                    asChild
+                  >
                     <Link href="/dev-forum/settings">Settings</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>
+                  <DropdownMenuItem 
+                    className="hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={handleLogout}
+                  >
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
