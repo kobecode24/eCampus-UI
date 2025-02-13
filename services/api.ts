@@ -1,5 +1,5 @@
 // api.ts
-import axios from "axios"
+import axios, { AxiosResponse } from 'axios'
 
 interface LoginCredentials {
   username: string;
@@ -18,9 +18,18 @@ interface PasswordUpdate {
 }
 
 export interface UserProfile {
-    email: string;
-    username: string;
+  email: string;
+  username: string;
+  avatar?: string;
 }
+
+interface PasswordUpdate {
+  currentPassword: string;
+  newPassword: string;
+}
+
+
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api"
 
@@ -63,10 +72,13 @@ api.interceptors.response.use(
 )
 
 const authService = {
-  login: (credentials: LoginCredentials) => api.post("/users/login", credentials),
-  register: (userData: UserData) => api.post("/users/register", userData),
-  logout: () => api.post("/auth/logout"),
-  getCurrentUser: () => api.get('/users/me')
+  login: (credentials: LoginCredentials): Promise<AxiosResponse<any>> => api.post("/users/login", credentials),
+  register: (userData: UserData): Promise<AxiosResponse<any>> => api.post("/users/register", userData),
+  logout: (): Promise<AxiosResponse<any>> => api.post("/auth/logout"),
+  getCurrentUser: (): Promise<AxiosResponse<any>> => api.get('/users/me'),
+  updateProfile: (userData: UserProfile): Promise<AxiosResponse<any>> => api.put("/users/me", userData),
+  updatePassword: (passwordData: PasswordUpdate) => 
+    api.put('/users/me/password', passwordData),
 }
 
 const userService = {
@@ -92,6 +104,48 @@ const forumService = {
   updatePost: (id: string, postData: any) => api.put(`/forum/posts/${id}`, postData),
   deletePost: (id: string) => api.delete(`/forum/posts/${id}`)
 }
+
+const blogService = {
+  
+  getAllBlogs: (page = 0, size = 10, sort = "createdAt,desc") => 
+    api.get(`/blogs?page=${page}&size=${size}&sort=${sort}`),
+  
+  getPublishedBlogs: (page = 0, size = 10, sort = "createdAt,desc") => 
+    api.get(`/blogs/published?page=${page}&size=${size}&sort=${sort}`),
+  
+  getTrendingBlogs: (page = 0, size = 10) => 
+    api.get(`/blogs/popular?page=${page}&size=${size}`),
+    
+  getLatestBlogs: (page = 0, size = 10) => 
+    api.get(`/blogs?page=${page}&size=${size}&sort=createdAt,desc`),
+  
+  createBlog: (blogData: {
+    title: string;
+    content: string;
+    tags?: string[];
+    pointsCost?: number;
+  }) => api.post("/blogs", blogData),
+  
+  getBlogById: (id: string) => api.get(`/blogs/${id}`),
+  
+  likeBlog: (id: string) => api.post(`/blogs/${id}/like`),
+  
+  unlikeBlog: (id: string) => api.post(`/blogs/${id}/unlike`),
+
+  getComments: (blogId: string, page = 0, size = 10) =>
+    api.get(`/blogs/${blogId}/comments?page=${page}&size=${size}`),
+    
+  createComment: (blogId: string, data: { content: string }) =>
+    api.post(`/blogs/${blogId}/comments`, data),
+    
+  updateComment: (blogId: string, commentId: string, data: { content: string }) =>
+    api.put(`/blogs/${blogId}/comments/${commentId}`, data),
+    
+  deleteComment: (blogId: string, commentId: string) =>
+    api.delete(`/blogs/${blogId}/comments/${commentId}`),
+}
+
+export { blogService }
 
 export { authService, userService, courseService, forumService }
 export default api
