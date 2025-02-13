@@ -1,84 +1,82 @@
+// components/comments/comment-section.tsx
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useState, useEffect } from "react"
 
-interface Comment {
-  id: number
-  author: string
-  content: string
-  createdAt: string
+import { blogService } from "@/services/api"
+import { useToast } from "@/hooks/use-toast"
+import { CommentForm } from "./comment-form";
+import { CommentList } from "./comment-list";
+import { BlogCommentDTO } from "@/app/types/comment";
+
+interface CommentSectionProps {
+  blogId: string;
+  onCommentAdded?: () => void;
 }
 
-export function CommentSection({ postId }: { postId: string }) {
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 1,
-      author: "ReduxFan",
-      content: "I still prefer Redux for large-scale applications. The ecosystem and dev tools are unmatched.",
-      createdAt: "2023-07-15T11:30:00Z",
-    },
-    {
-      id: 2,
-      author: "ZustandLover",
-      content: "Zustand has been a game-changer for me. It's so simple and performant!",
-      createdAt: "2023-07-15T12:15:00Z",
-    },
-  ])
-  const [newComment, setNewComment] = useState("")
+export function CommentSection({ blogId, onCommentAdded }: CommentSectionProps) {
+  const [comments, setComments] = useState<BlogCommentDTO[]>([])
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const { toast } = useToast()
 
-  const handleSubmitComment = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newComment.trim()) {
-      const comment: Comment = {
-        id: comments.length + 1,
-        author: "CurrentUser", // In a real app, this would be the logged-in user
-        content: newComment,
-        createdAt: new Date().toISOString(),
+  const fetchComments = async (resetPage = false) => {
+    try {
+      setLoading(true)
+      const currentPage = resetPage ? 0 : page
+      const response = await blogService.getComments(blogId, currentPage)
+
+      if (response.data.success) {
+        const newComments = response.data.data.content
+        setComments(prev => resetPage ? newComments : [...prev, ...newComments])
+        setPage(prev => resetPage ? 1 : prev + 1)
+        setHasMore(newComments.length > 0)
       }
-      setComments([...comments, comment])
-      setNewComment("")
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchComments(true)
+  }, [blogId])
+
+  const handleCommentSubmit = async (content: string) => {
+    try {
+      const response = await blogService.createComment(blogId, { content })
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: "Comment added successfully"
+        })
+        fetchComments(true)
+        onCommentAdded?.()
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add comment",
+        variant: "destructive"
+      })
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Comments</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmitComment} className="mb-4">
-          <Textarea
-            placeholder="Add a comment..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            className="mb-2"
-          />
-          <Button type="submit">Post Comment</Button>
-        </form>
-        <div className="space-y-4">
-          {comments.map((comment) => (
-            <div key={comment.id} className="flex space-x-2">
-              <Avatar className="h-6 w-6">
-                <AvatarFallback>{comment.author[0].toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-semibold">{comment.author}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {new Date(comment.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <p>{comment.content}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <CommentForm onSubmit={handleCommentSubmit} />
+      <CommentList 
+        comments={comments}
+        loading={loading}
+        hasMore={hasMore}
+        onLoadMore={() => fetchComments()}
+      />
+    </div>
   )
 }
-
