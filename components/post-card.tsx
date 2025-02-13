@@ -12,9 +12,10 @@ interface PostCardProps {
   votes: number;
   comments: number;
   codeSnippet: string;
+  onComment?: () => void;
 }
 
-export function PostCard({ title, author, content, category, votes, comments, codeSnippet }: PostCardProps) {
+export function PostCard({ title, author, content, category, votes, comments, codeSnippet, onComment }: PostCardProps) {
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg">
       <CardHeader className="pb-2">
@@ -51,7 +52,12 @@ export function PostCard({ title, author, content, category, votes, comments, co
             <ArrowBigDown className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-gray-300 hover:text-white"
+          onClick={onComment}
+        >
           <MessageSquare className="mr-1 h-4 w-4" />
           <span className="text-sm font-medium">{comments}</span>
         </Button>
