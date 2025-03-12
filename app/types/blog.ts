@@ -1,3 +1,5 @@
+import { BlogCommentDTO } from "./comment";
+
 // types/blog.ts
 export interface BlogDTO {
     id: string;
@@ -7,7 +9,8 @@ export interface BlogDTO {
     authorUsername: string;
     tags: string[];
     likes: number;
-    comments: any[];
+    hasLiked: boolean;
+    comments: BlogCommentDTO[];
     createdAt: string;
     category?: string;
     codeSnippet?: string;
