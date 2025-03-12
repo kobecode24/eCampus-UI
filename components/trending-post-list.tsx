@@ -32,8 +32,41 @@ interface ExtendedBlogDTO extends BlogDTO {
   commentCount?: number;
 }
 
+// Add static posts here instead of in PostCard
+const staticPosts: BlogDTO[] = [
+  {
+    id: "1",
+    title: "Sample Post 1",
+    content: "This is a sample post content...",
+    authorUsername: "user1",
+    likes: 10,
+    comments: 2,
+    createdAt: new Date().toISOString(),
+    hasLiked: false,
+    // Add other required properties
+    authorId: "1",
+    published: true,
+    category: "Tech",
+    codeSnippet: "console.log('Hello World');"
+  },
+  {
+    id: "2",
+    title: "Sample Post 2",
+    content: "Another example post...",
+    authorUsername: "user2",
+    likes: 5,
+    comments: 1,
+    createdAt: new Date().toISOString(),
+    hasLiked: true,
+    authorId: "2",
+    published: true,
+    category: "Web Dev",
+    codeSnippet: "const example = () => {};"
+  }
+];
+
 export function TrendingPostList() {
-  const [posts, setPosts] = useState<ExtendedBlogDTO[]>([])
+  const [posts, setPosts] = useState<BlogDTO[]>(staticPosts)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -249,12 +282,16 @@ export function TrendingPostList() {
                 className="flex flex-col gap-4"
               >
                 <PostCard 
-                  {...post}
-                  votes={post.likes}
-                  author={post.authorUsername}
-                  comments={post.commentCount || 0}
-                  onLike={() => handleLikePost(post.id)}
-                  onComment={() => toggleComments(post.id)}
+                  post={post}
+                  onLikeUpdate={(postId, newLikes, hasLiked) => {
+                    setPosts(currentPosts => 
+                      currentPosts.map(p => 
+                        p.id === postId 
+                          ? {...p, likes: newLikes, hasLiked} 
+                          : p
+                      )
+                    );
+                  }}
                 />
                 
                 <AnimatePresence>

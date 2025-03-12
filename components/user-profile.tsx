@@ -14,6 +14,7 @@ import { authService, userService } from "@/services/api";
 import iziToast from "izitoast";
 import "izitoast/dist/css/iziToast.min.css";
 import { UUID } from "node:crypto";
+import { useAuthStore } from "@/stores/useAuthStore"
 
 interface UserData {
   id: UUID;
@@ -33,6 +34,7 @@ interface UserData {
 export function UserProfile() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { updateAvatar } = useAuthStore();
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -53,12 +55,14 @@ export function UserProfile() {
       const { success, avatarUrl } = response.data;
 
       if (success) {
+        setUserData((prev) => (prev ? { ...prev, avatar: avatarUrl } : prev));
+        updateAvatar(avatarUrl);
+        
         iziToast.success({
           title: "Success",
           message: "Avatar uploaded successfully!",
           position: "topRight",
         });
-        setUserData((prev) => (prev ? { ...prev, avatar: avatarUrl } : prev));
       } else {
         iziToast.error({
           title: "Error",
