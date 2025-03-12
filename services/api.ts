@@ -30,6 +30,8 @@ interface PasswordUpdate {
   newPassword: string;
 }
 
+// Fix potential duplication of /api in URLs
+// Remove trailing slash if present to ensure consistent URL joining
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api").replace(/\/$/, '')
 
 // Create logger for debugging
