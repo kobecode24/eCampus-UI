@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Save, Users, History, Settings, Eye, Edit, ChevronDown, Share2, FileText, MoreHorizontal } from "lucide-react"
 import {
@@ -13,21 +13,63 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
+import { toast } from "@/components/ui/use-toast"
 
 interface DocumentationHeaderProps {
-  title: string
-  onTitleChange: (title: string) => void
-  documentStatus: string
-  collaborators: number
+  collaborators?: number;
 }
 
-export function DocumentationHeader({ title, onTitleChange, documentStatus, collaborators }: DocumentationHeaderProps) {
+export function DocumentationHeader({ collaborators = 0 }: DocumentationHeaderProps) {
+  // Use the documentation store
+  const { 
+    selectedDocumentation, 
+    selectedSection, 
+    updateSection, 
+    updateDocumentation 
+  } = useDocumentationStore();
+  
   const [isEditing, setIsEditing] = useState(false)
-  const [localTitle, setLocalTitle] = useState<string>(title || "")
+  const [localTitle, setLocalTitle] = useState<string>("")
+  
+  // Update local title when selected section or documentation changes
+  useEffect(() => {
+    // Prioritize selected section title
+    if (selectedSection) {
+      setLocalTitle(selectedSection.title || "")
+    } else if (selectedDocumentation) {
+      setLocalTitle(selectedDocumentation.title || "")
+    }
+  }, [selectedSection, selectedDocumentation])
 
-  const handleTitleChange = () => {
-    onTitleChange(localTitle || "")
-    setIsEditing(false)
+  const handleTitleChange = async () => {
+    if (!localTitle.trim()) return;
+    
+    try {
+      if (selectedSection && selectedSection.id) {
+        // Update section title
+        await updateSection(selectedSection.id, { title: localTitle });
+        toast({
+          title: "Success",
+          description: "Section title updated successfully"
+        });
+      } else if (selectedDocumentation && selectedDocumentation.id) {
+        // Update documentation title
+        await updateDocumentation(selectedDocumentation.id, { title: localTitle });
+        toast({
+          title: "Success",
+          description: "Documentation title updated successfully"
+        });
+      }
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update title:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update title",
+        variant: "destructive"
+      });
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -35,6 +77,12 @@ export function DocumentationHeader({ title, onTitleChange, documentStatus, coll
       handleTitleChange()
     }
   }
+
+  // Get document status from selected documentation
+  const documentStatus = selectedDocumentation?.status || "DRAFT";
+
+  // Display appropriate title
+  const title = selectedSection?.title || selectedDocumentation?.title || "Untitled Document";
 
   return (
     <header className="border-b border-indigo-500/20 bg-indigo-900/30 backdrop-blur-md p-4">

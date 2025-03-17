@@ -6,61 +6,26 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { EnhancedTipTapEditor } from "./enhanced-tiptap-editor"
 import { Eye, Code, PenTool, Save, Copy, Download, RefreshCw } from "lucide-react"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
+import { toast } from "@/components/ui/use-toast"
 
 export function AdvancedEditor() {
   const [activeTab, setActiveTab] = useState("write")
-  const [content, setContent] = useState(`
-<h1>Documentation Guidelines</h1>
-
-<p>Welcome to our documentation guidelines. This document outlines the best practices for creating and maintaining documentation within our platform.</p>
-
-<h2>Core Principles</h2>
-
-<p>When creating documentation, keep these core principles in mind:</p>
-
-<ul>
-  <li>Be clear and concise</li>
-  <li>Use consistent terminology</li>
-  <li>Provide examples where appropriate</li>
-  <li>Consider the user's perspective</li>
-</ul>
-
-<h2>Formatting Standards</h2>
-
-<p>Use the following formatting standards to ensure consistency across all documentation:</p>
-
-<h3>Code Examples</h3>
-
-<pre><code>// Example code block
-function exampleFunction() {
-  console.log("This is an example");
-  return true;
-}</code></pre>
-
-<h3>Notes and Warnings</h3>
-
-<blockquote>
-  <p><strong>Note:</strong> This is an important note that users should be aware of.</p>
-</blockquote>
-
-<h2>Review Process</h2>
-
-<p>All documentation should go through the following review process:</p>
-
-<ol>
-  <li>Initial draft creation</li>
-  <li>Peer review</li>
-  <li>Technical accuracy verification</li>
-  <li>Editorial review</li>
-  <li>Final approval</li>
-</ol>
-
-<p>For more information, please refer to the <a href="#">Documentation Style Guide</a>.</p>
-  `)
+  const [content, setContent] = useState("")
   const [htmlContent, setHtmlContent] = useState("")
   const [isMounted, setIsMounted] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
+  
+  // Connect to documentation store
+  const { selectedSection, updateSection } = useDocumentationStore()
+
+  // Load content when selected section changes
+  useEffect(() => {
+    if (selectedSection?.content) {
+      setContent(selectedSection.content)
+    }
+  }, [selectedSection])
 
   useEffect(() => {
     setIsMounted(true)
@@ -70,22 +35,43 @@ function exampleFunction() {
     setContent(html)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!selectedSection?.id) {
+      toast({
+        title: "Error",
+        description: "No section selected to save",
+        variant: "destructive"
+      })
+      return
+    }
+
     setIsSaving(true)
 
-    // Simulate saving
-    setTimeout(() => {
-      setIsSaving(false)
+    try {
+      await updateSection(selectedSection.id, { content })
       setShowSaveSuccess(true)
-
+      
       setTimeout(() => {
         setShowSaveSuccess(false)
       }, 2000)
-    }, 1000)
+    } catch (error) {
+      console.error("Failed to save section:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save content. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleCopyHtml = () => {
     navigator.clipboard.writeText(content)
+    toast({
+      title: "Success",
+      description: "HTML copied to clipboard",
+    })
   }
 
   const handleDownload = () => {
@@ -93,7 +79,9 @@ function exampleFunction() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "documentation.html"
+    a.download = selectedSection?.title 
+      ? `${selectedSection.title.toLowerCase().replace(/\s+/g, '-')}.html` 
+      : "documentation.html"
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -111,12 +99,31 @@ function exampleFunction() {
     )
   }
 
+  // If no section is selected, show placeholder
+  if (!selectedSection) {
+    return (
+      <div className="h-96 w-full bg-indigo-900/20 border border-indigo-500/30 rounded-md flex items-center justify-center">
+        <div className="text-center p-6">
+          <h3 className="text-xl font-medium text-indigo-300 mb-2">No section selected</h3>
+          <p className="text-indigo-200 opacity-70">
+            Select a section from the sidebar to edit its content.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 bg-green-500 rounded-full pulse"></div>
           <span className="text-sm text-indigo-300">Auto-saving enabled</span>
+          {selectedSection && (
+            <span className="text-sm text-indigo-200 ml-4">
+              Editing: <span className="font-medium">{selectedSection.title}</span>
+            </span>
+          )}
         </div>
 
         <div className="flex gap-2">
