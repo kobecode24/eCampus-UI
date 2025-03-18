@@ -2,6 +2,7 @@
 import { BlogDTO } from '@/app/types/blog';
 import axios, { AxiosResponse, InternalAxiosRequestConfig, AxiosRequestConfig } from 'axios'
 import { User } from '@/app/types/user'
+import { DocumentationDTO } from '@/app/types/documentation';
 
 interface LoginCredentials {
   username: string;
@@ -63,7 +64,7 @@ api.interceptors.response.use(
     authFailureCount = 0;
     return response;
   },
-  async (error) => {
+    async (error) => {
     // Skip token refresh for logout and other flagged requests
     if (error.config && error.config.__skipAuthRefresh) {
       console.log('Skipping auth refresh for this request as flagged:', error.config.url);
@@ -155,8 +156,8 @@ api.interceptors.response.use(
       error.response?.status, 
       error.response?.data || error.message
     );
-    return Promise.reject(error);
-  }
+      return Promise.reject(error);
+    }
 )
 
 // Helper function to get auth header for requests
@@ -195,7 +196,7 @@ const authService = {
         responseData: response.data
       });
       
-      // Set cookies with proper attributes
+    // Set cookies with proper attributes
       if (response.data.data.token) {
         document.cookie = `token=${response.data.data.token}; path=/; sameSite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
         console.log('Access token cookie set');
@@ -746,6 +747,10 @@ const documentationService = {
     tags?: string[];
   }) => api.post('/documentation', data, { headers: getAuthHeader() }),
 
+  // Update documentation
+  updateDocumentation: (docId: string, data: Partial<DocumentationDTO>) =>
+      api.put(`/documentation/${docId}`, data, { headers: getAuthHeader() }),
+
   // Create new section (document)
   createSection: (docId: string, data: {
     title: string;
@@ -753,6 +758,10 @@ const documentationService = {
     sectionId?: string;
     orderIndex?: number;
   }) => api.post(`/documentation/${docId}/sections`, data, { headers: getAuthHeader() }),
+
+  // get a specific section
+    getSection: (sectionId: string) =>
+        api.get(`/documentation/sections/${sectionId}` , { headers: getAuthHeader() }),
 
   // Get document structure
   getDocumentStructure: (docId: string) =>
