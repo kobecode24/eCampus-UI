@@ -12,6 +12,7 @@ export interface DocumentationDTO {
     createdAt?: string;
     lastUpdatedAt?: string;
     version?: number;
+    lastModifiedBy?: string;
 }
 
 export interface DocumentationSectionDTO {
@@ -21,4 +22,7 @@ export interface DocumentationSectionDTO {
     content: string;
     orderIndex?: number;
     sectionId?: string;
+    createdAt?: string;
+    lastUpdatedAt?: string;
+    lastModifiedBy?: string;
 }
