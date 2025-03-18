@@ -6,10 +6,26 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Clock, AlertTriangle, Users, Calendar, FileText } from "lucide-react"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
+
 
 export function DocumentationWorkflowTools() {
   const [documentStatus, setDocumentStatus] = useState("draft")
 
+   // Get the selected documentation and section from the store
+   const { 
+    selectedSection, 
+    selectedDocumentation,
+    getFormattedLastUpdated,
+    getLastModifiedByUsername
+  } = useDocumentationStore()
+  
+  //const documentStatus = selectedDocumentation?.status || "DRAFT"
+  
+  // Get formatted time and username for the selected section
+  const lastUpdatedFormatted = getFormattedLastUpdated(selectedSection)
+  const lastModifiedByUsername = getLastModifiedByUsername(selectedSection)
+  
   return (
     <div className="space-y-6">
       <Card className="bg-indigo-900/20 border-indigo-500/30 text-white">
@@ -24,7 +40,7 @@ export function DocumentationWorkflowTools() {
             <h3 className="text-sm font-medium">Current Status</h3>
             <div className="flex items-center gap-3">
               <StatusBadge status={documentStatus} />
-              <div className="text-sm text-indigo-300">Last updated 2 hours ago by Alex Morgan</div>
+              <div className="text-sm text-indigo-300">Last updated {lastUpdatedFormatted} ago by {lastModifiedByUsername}</div>
             </div>
           </div>
 

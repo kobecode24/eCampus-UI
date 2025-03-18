@@ -415,10 +415,6 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
       <div
         className={`success-animation fixed inset-0 pointer-events-none z-50 flex items-center justify-center ${showSuccessAnimation ? "active" : ""}`}
       >
-        <div className="bg-indigo-900/80 text-white rounded-full p-4 flex items-center gap-2 shadow-lg">
-          <Check className="h-6 w-6 text-green-400" />
-          <span>Success!</span>
-        </div>
       </div>
     </div>
   )

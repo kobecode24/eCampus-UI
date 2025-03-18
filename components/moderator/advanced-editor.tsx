@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,7 @@ export function AdvancedEditor() {
   const [isMounted, setIsMounted] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
+  const editorKey = useRef(0) // Add a key reference to force re-render
   
   // Connect to documentation store
   const { selectedSection, updateSection } = useDocumentationStore()
@@ -24,6 +25,11 @@ export function AdvancedEditor() {
   useEffect(() => {
     if (selectedSection?.content) {
       setContent(selectedSection.content)
+      // Increment the key to force a re-mount of the editor component
+      editorKey.current += 1
+      
+      // Log for debugging
+      console.log("Section changed, new content:", selectedSection.content)
     }
   }, [selectedSection])
 
@@ -44,21 +50,22 @@ export function AdvancedEditor() {
       })
       return
     }
-
+    
     setIsSaving(true)
-
+    
     try {
       await updateSection(selectedSection.id, { content })
       setShowSaveSuccess(true)
-      
-      setTimeout(() => {
-        setShowSaveSuccess(false)
-      }, 2000)
+      setTimeout(() => setShowSaveSuccess(false), 3000)
+      toast({
+        title: "Success",
+        description: "Content saved successfully"
+      })
     } catch (error) {
-      console.error("Failed to save section:", error)
+      console.error("Error saving content:", error)
       toast({
         title: "Error",
-        description: "Failed to save content. Please try again.",
+        description: "Failed to save content",
         variant: "destructive"
       })
     } finally {
@@ -69,19 +76,17 @@ export function AdvancedEditor() {
   const handleCopyHtml = () => {
     navigator.clipboard.writeText(content)
     toast({
-      title: "Success",
-      description: "HTML copied to clipboard",
+      title: "Copied",
+      description: "HTML content copied to clipboard"
     })
   }
 
   const handleDownload = () => {
-    const blob = new Blob([content], { type: "text/html" })
+    const blob = new Blob([content], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
+    const a = document.createElement('a')
     a.href = url
-    a.download = selectedSection?.title 
-      ? `${selectedSection.title.toLowerCase().replace(/\s+/g, '-')}.html` 
-      : "documentation.html"
+    a.download = `${selectedSection?.title || 'document'}.html`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -114,115 +119,84 @@ export function AdvancedEditor() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 bg-green-500 rounded-full pulse"></div>
-          <span className="text-sm text-indigo-300">Auto-saving enabled</span>
-          {selectedSection && (
-            <span className="text-sm text-indigo-200 ml-4">
-              Editing: <span className="font-medium">{selectedSection.title}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopyHtml}
-            className="bg-indigo-900/30 border-indigo-500/30 text-indigo-300 hover:bg-indigo-800/50 hover:text-white animated-button"
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copy HTML
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            className="bg-indigo-900/30 border-indigo-500/30 text-indigo-300 hover:bg-indigo-800/50 hover:text-white animated-button"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-            className={`bg-indigo-600 hover:bg-indigo-700 text-white animated-button ${showSaveSuccess ? "success-animation active" : ""}`}
-          >
-            {isSaving ? (
+    <Card className="w-full h-full glass-panel">
+      <Tabs defaultValue="write" value={activeTab} onValueChange={setActiveTab} className="w-full h-full">
+        <div className="flex justify-between items-center px-4 pt-2">
+          <TabsList className="bg-indigo-800/30 border border-indigo-500/30">
+            <TabsTrigger value="write" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+              <PenTool className="h-4 w-4 mr-2" />
+              Write
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+              <Eye className="h-4 w-4 mr-2" />
+              Preview
+            </TabsTrigger>
+            <TabsTrigger value="html" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+              <Code className="h-4 w-4 mr-2" />
+              HTML
+            </TabsTrigger>
+          </TabsList>
+          
+          <div className="flex space-x-2">
+            {activeTab === "html" && (
               <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : showSaveSuccess ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Saved!
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save
+                <button 
+                  onClick={handleCopyHtml} 
+                  className="p-1 text-indigo-300 hover:text-white hover:bg-indigo-700/30 rounded"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={handleDownload} 
+                  className="p-1 text-indigo-300 hover:text-white hover:bg-indigo-700/30 rounded"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
               </>
             )}
-          </Button>
-        </div>
-      </div>
-
-      <Card className="glass-panel border-indigo-500/30 overflow-hidden">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="border-b border-indigo-500/30 px-4 bg-indigo-900/30">
-            <TabsList className="bg-transparent border-b-0 h-12">
-              <TabsTrigger
-                value="write"
-                className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 data-[state=active]:shadow-none rounded-none h-12 px-4 text-indigo-300 data-[state=active]:text-white animated-button"
-              >
-                <PenTool className="h-4 w-4 mr-2" />
-                Write
-              </TabsTrigger>
-              <TabsTrigger
-                value="preview"
-                className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 data-[state=active]:shadow-none rounded-none h-12 px-4 text-indigo-300 data-[state=active]:text-white animated-button"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Preview
-              </TabsTrigger>
-              <TabsTrigger
-                value="code"
-                className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 data-[state=active]:shadow-none rounded-none h-12 px-4 text-indigo-300 data-[state=active]:text-white animated-button"
-              >
-                <Code className="h-4 w-4 mr-2" />
-                HTML
-              </TabsTrigger>
-            </TabsList>
+            <button 
+              onClick={handleSave} 
+              disabled={isSaving}
+              className={`p-1 rounded flex items-center ${isSaving ? 'bg-indigo-600/50 text-gray-300' : 'text-indigo-300 hover:text-white hover:bg-indigo-700/30'}`}
+            >
+              {isSaving ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : showSaveSuccess ? (
+                <div className="text-green-500 flex items-center">
+                  <Save className="h-4 w-4 mr-1" />
+                  <span className="text-xs">Saved</span>
+                </div>
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+            </button>
           </div>
-
-          <CardContent className="p-0">
-            <TabsContent value="write" className="m-0">
-              <div className="p-0">
-                <EnhancedTipTapEditor content={content} onChange={handleContentChange} />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="preview" className="m-0">
-              <div
-                className="p-6 prose prose-invert max-w-none custom-scrollbar"
-                dangerouslySetInnerHTML={{ __html: content }}
+        </div>
+        
+        <CardContent className="p-0 pt-4 h-[calc(100%-3rem)]">
+          <TabsContent value="write" className="h-full m-0">
+            {/* Wrap the editor in a div with the desired styling */}
+            <div className="min-h-[400px] p-4">
+              <EnhancedTipTapEditor 
+                key={`editor-${editorKey.current}`}
+                content={content} 
+                onChange={handleContentChange}
               />
-            </TabsContent>
-
-            <TabsContent value="code" className="m-0">
-              <div className="p-4 bg-indigo-950/50 text-indigo-300 font-mono text-sm overflow-auto h-[500px] custom-scrollbar">
-                <pre>{content}</pre>
-              </div>
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
-    </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="preview" className="h-full m-0 overflow-auto p-6 prose prose-invert max-w-none">
+            <div dangerouslySetInnerHTML={{ __html: content }} />
+          </TabsContent>
+          
+          <TabsContent value="html" className="h-full m-0">
+            <pre className="p-6 overflow-auto text-xs h-full bg-gray-900 rounded-b-md">
+              <code>{content}</code>
+            </pre>
+          </TabsContent>
+        </CardContent>
+      </Tabs>
+    </Card>
   )
 }
 
