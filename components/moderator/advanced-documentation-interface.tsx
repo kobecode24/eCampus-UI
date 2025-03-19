@@ -88,25 +88,25 @@ export function AdvancedDocumentationInterface() {
             <TabsList className="grid grid-cols-4 mb-6 bg-indigo-900/30 border border-indigo-500/30 glass-panel">
               <TabsTrigger
                 value="editor"
-                className="data-[state=active]:bg-indigo-700/50 transition-all duration-300 animated-button"
+                className="data-[state=active]:white/50 transition-all duration-300 animated-button"
               >
                 Editor
               </TabsTrigger>
               <TabsTrigger
                 value="workflow"
-                className="data-[state=active]:bg-indigo-700/50 transition-all duration-300 animated-button"
+                className="data-[state=active]:white/50 transition-all duration-300 animated-button"
               >
                 Workflow
               </TabsTrigger>
               <TabsTrigger
                 value="moderation"
-                className="data-[state=active]:bg-indigo-700/50 transition-all duration-300 animated-button"
+                className="data-[state=active]:white/50 transition-all duration-300 animated-button"
               >
                 Moderation
               </TabsTrigger>
               <TabsTrigger
                 value="structure"
-                className="data-[state=active]:bg-indigo-700/50 transition-all duration-300 animated-button"
+                className="data-[state=active]:white/50 transition-all duration-300 animated-button"
               >
                 Structure
               </TabsTrigger>

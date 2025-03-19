@@ -1,30 +1,130 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Clock, AlertTriangle, Users, Calendar, FileText } from "lucide-react"
 import { useDocumentationStore } from "@/stores/useDocumentationStore"
+import { toast } from "@/components/ui/use-toast"
 
 
 export function DocumentationWorkflowTools() {
-  const [documentStatus, setDocumentStatus] = useState("draft")
+  const [documentStatus, setDocumentStatus] = useState<string>("draft")
 
    // Get the selected documentation and section from the store
    const { 
     selectedSection, 
     selectedDocumentation,
     getFormattedLastUpdated,
-    getLastModifiedByUsername
+    getLastModifiedByUsername,
+    updateDocumentationStatus
   } = useDocumentationStore()
   
-  //const documentStatus = selectedDocumentation?.status || "DRAFT"
+  // Add debug logging to check what's happening
+  useEffect(() => {
+    console.log("Selected documentation:", selectedDocumentation);
+    console.log("updateDocumentationStatus function:", !!updateDocumentationStatus);
+  }, [selectedDocumentation, updateDocumentationStatus]);
+  
+  // Effect to update local state when selected documentation changes
+  useEffect(() => {
+    if (selectedDocumentation?.status) {
+      console.log("Setting status from doc:", selectedDocumentation.status.toLowerCase());
+      setDocumentStatus(selectedDocumentation.status.toLowerCase());
+    }
+  }, [selectedDocumentation]);
   
   // Get formatted time and username for the selected section
   const lastUpdatedFormatted = getFormattedLastUpdated(selectedSection)
   const lastModifiedByUsername = getLastModifiedByUsername(selectedSection)
+  
+  // Add these functions
+  const handleSubmitForReview = async () => {
+    if (!selectedDocumentation?.id) return;
+    
+    try {
+      console.log("Submitting for review");
+      await updateDocumentationStatus(selectedDocumentation.id, "REVIEW");
+      setDocumentStatus("review");
+      
+      toast({
+        title: "Success",
+        description: "Document submitted for review"
+      });
+    } catch (error) {
+      console.error("Error submitting for review:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit document for review",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleApproveAndPublish = async () => {
+    if (!selectedDocumentation?.id) return;
+    
+    try {
+      await updateDocumentationStatus(selectedDocumentation.id, "PUBLISHED");
+      setDocumentStatus("published");
+      
+      toast({
+        title: "Success",
+        description: "Document published successfully"
+      });
+    } catch (error) {
+      console.error("Error publishing document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to publish document",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleUnpublish = async () => {
+    if (!selectedDocumentation?.id) return;
+    
+    try {
+      await updateDocumentationStatus(selectedDocumentation.id, "DRAFT");
+      setDocumentStatus("draft");
+      
+      toast({
+        title: "Success",
+        description: "Document unpublished and returned to draft"
+      });
+    } catch (error) {
+      console.error("Error unpublishing document:", error);
+      toast({
+        title: "Error",
+        description: "Failed to unpublish document",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleRequestChanges = async () => {
+    if (!selectedDocumentation?.id) return;
+    
+    try {
+      await updateDocumentationStatus(selectedDocumentation.id, "DRAFT");
+      setDocumentStatus("draft");
+      
+      toast({
+        title: "Success",
+        description: "Changes requested - document returned to draft"
+      });
+    } catch (error) {
+      console.error("Error requesting changes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to request changes",
+        variant: "destructive"
+      });
+    }
+  };
   
   return (
     <div className="space-y-6">
@@ -80,15 +180,35 @@ export function DocumentationWorkflowTools() {
 
           <div className="pt-4 space-y-3">
             {documentStatus === "draft" && (
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">Submit for Review</Button>
+              <Button 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
+                onClick={() => {
+                  console.log("Submit for Review clicked");
+                  handleSubmitForReview();
+                }}
+              >
+                Submit for Review
+              </Button>
             )}
 
             {documentStatus === "review" && (
               <div className="space-y-3">
-                <Button className="w-full bg-green-600 hover:bg-green-700">Approve & Publish</Button>
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => {
+                    console.log("Approve & Publish clicked");
+                    handleApproveAndPublish();
+                  }}
+                >
+                  Approve & Publish
+                </Button>
                 <Button
                   variant="outline"
                   className="w-full bg-indigo-900/30 border-indigo-500/30 text-indigo-300 hover:bg-indigo-800/50"
+                  onClick={() => {
+                    console.log("Request Changes clicked");
+                    handleRequestChanges();
+                  }}
                 >
                   Request Changes
                 </Button>
@@ -97,10 +217,13 @@ export function DocumentationWorkflowTools() {
 
             {documentStatus === "published" && (
               <div className="space-y-3">
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700">Create New Version</Button>
                 <Button
                   variant="outline"
                   className="w-full bg-indigo-900/30 border-indigo-500/30 text-indigo-300 hover:bg-indigo-800/50"
+                  onClick={() => {
+                    console.log("Unpublish clicked");
+                    handleUnpublish();
+                  }}
                 >
                   Unpublish
                 </Button>

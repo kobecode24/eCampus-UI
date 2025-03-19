@@ -597,7 +597,7 @@ function DynamicDocumentFolder({
   const getStatusColor = () => {
     switch (documentation.status) {
       case "PUBLISHED": return "bg-green-500";
-      case "REVIEW": return "bg-amber-500";
+      case "REVIEW": return "bg-blue-500";
       case "ARCHIVED": return "bg-gray-500";
       default: return "bg-yellow-500"; // DRAFT
     }
