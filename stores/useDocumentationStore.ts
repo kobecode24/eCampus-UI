@@ -35,7 +35,7 @@ interface DocumentationState {
   createSection: (docId: string, data: { title: string; content: string; sectionId?: string; orderIndex?: number }) => Promise<DocumentationSectionDTO>
   updateSection: (sectionId: string, data: Partial<DocumentationSectionDTO>) => Promise<DocumentationSectionDTO>
   updateDocumentation: (docId: string, data: Partial<DocumentationDTO>) => Promise<DocumentationDTO>
-  updateDocumentationStatus: (docId: string, status: string, comment?: string) => Promise<void>
+  updateDocumentationStatus: (docId: string, status: string) => Promise<boolean>
   
   // Metadata helpers
   getLastModifiedDate: (docId: string) => string | null
@@ -48,6 +48,9 @@ interface DocumentationState {
   getLastModifiedByUsername: (section: DocumentationSectionDTO | null) => string
   fetchUsername: (userId: string) => Promise<string>
 }
+
+// Add a type definition for the status values
+type DocumentationStatusType = "DRAFT" | "REVIEW" | "PUBLISHED" | "ARCHIVED";
 
 export const useDocumentationStore = create<DocumentationState>()(
   devtools(
@@ -348,48 +351,45 @@ export const useDocumentationStore = create<DocumentationState>()(
         },
         
         // Update documentation status
-        updateDocumentationStatus: async (docId, status, comment) => {
-          set({ loading: true, error: null })
+        updateDocumentationStatus: async (docId: string, status: string) => {
           try {
-            const response = await documentationService.updateDocumentStatus(docId, status, comment)
-            if (response.data.success) {
-              // Refresh the documentations
-              get().fetchDocumentations()
+            console.log(`Updating doc ${docId} status to ${status}`);
+            
+            // Cast the status to the correct type
+            const typedStatus = status as DocumentationStatusType;
+            
+            // Make the API call
+            const response = await documentationService.updateStatus(docId, status);
+            
+            // Update the state with properly typed values
+            set((state) => {
+              const updatedDocs = state.documentations.map(doc => {
+                if (doc.id === docId) {
+                  return { ...doc, status: typedStatus };
+                }
+                return doc;
+              });
               
-              // If the currently selected documentation is the one being updated, refresh it
-              if (get().selectedDocumentation?.id === docId) {
-                get().fetchDocumentation(docId)
+              let updatedSelected = state.selectedDocumentation;
+              if (state.selectedDocumentation?.id === docId) {
+                updatedSelected = { 
+                  ...state.selectedDocumentation, 
+                  status: typedStatus 
+                };
               }
               
-              set({ loading: false })
-            } else {
-              set({ 
-                error: response.data.message || 'Failed to update documentation status',
-                loading: false
-              })
-              
-              toast({
-                title: "Error",
-                description: response.data.message || 'Failed to update documentation status',
-                variant: "destructive"
-              })
-              
-              throw new Error(response.data.message || 'Failed to update documentation status')
-            }
-          } catch (error: any) {
-            console.error("Error updating documentation status:", error)
-            set({ 
-              error: error.message || 'Failed to update documentation status',
-              loading: false
-            })
+              return {
+                ...state,
+                documentations: updatedDocs,
+                selectedDocumentation: updatedSelected
+              };
+            });
             
-            toast({
-              title: "Error",
-              description: error.message || 'Failed to update documentation status',
-              variant: "destructive"
-            })
-            
-            throw error
+              console.log("Status update successful");
+            return true;
+          } catch (error) {
+            console.error("Error updating status:", error);
+            throw error;
           }
         },
         
