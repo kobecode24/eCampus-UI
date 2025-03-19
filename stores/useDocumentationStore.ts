@@ -268,20 +268,26 @@ export const useDocumentationStore = create<DocumentationState>()(
           try {
             const response = await documentationService.updateSection(sectionId, data)
             if (response.data.success) {
-              // Update the section in the state
+              // Get the updated section data
               const updatedSection = response.data.data
               
-              // Update the section in the sections array
-              set((state) => ({ 
-                sections: state.sections.map(section => 
-                  section.id === sectionId ? { ...section, ...updatedSection } : section
-                ),
-                // If this is the currently selected section, update it too
-                selectedSection: state.selectedSection?.id === sectionId 
-                  ? { ...state.selectedSection, ...updatedSection } 
-                  : state.selectedSection,
-                loading: false
-              }))
+              // Update the section in the sections array with safety check
+              set((state) => {
+                // Ensure sections is always an array
+                const sectionsArray = Array.isArray(state.sections) ? state.sections : [];
+                
+                return { 
+                  // Map through the sections array if it exists
+                  sections: sectionsArray.map(section => 
+                    section.id === sectionId ? { ...section, ...updatedSection } : section
+                  ),
+                  // Update selected section if it matches
+                  selectedSection: state.selectedSection?.id === sectionId 
+                    ? { ...state.selectedSection, ...updatedSection } 
+                    : state.selectedSection,
+                  loading: false
+                };
+              })
               
               return updatedSection
             } else {
@@ -467,21 +473,36 @@ export const useDocumentationStore = create<DocumentationState>()(
             // Use the actual API endpoint
             const response = await userService.getUser(userId);
 
-            if (response.data && response.data.username) {
-              const username = response.data.username;
-
-              // Update the username cache
+            // Check if we got a valid response with username
+            if (response.data && response.data.data && response.data.data.username) {
+              const username = response.data.data.username;
+              
+              // Update the username cache immediately
               set((state) => ({
                 usernames: { ...state.usernames, [userId]: username }
               }));
-
+              
               return username;
             }
-
-            return 'Unknown';
+            
+            // If we couldn't get a username from the API, use a more user-friendly fallback
+            // and still cache it to avoid repeated calls
+            const fallbackName = userId.substring(0, 8); // Use first part of UUID
+            set((state) => ({
+              usernames: { ...state.usernames, [userId]: `User ${fallbackName}` }
+            }));
+            
+            return `User ${fallbackName}`;
           } catch (error) {
             console.error(`Error fetching username for ${userId}:`, error);
-            return 'Unknown';
+            
+            // Even if the call fails, cache a fallback value to prevent repeated failing calls
+            const fallbackName = userId.substring(0, 8);
+            set((state) => ({
+              usernames: { ...state.usernames, [userId]: `User ${fallbackName}` }
+            }));
+            
+            return `User ${fallbackName}`;
           }
         }
       }),
