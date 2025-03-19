@@ -792,7 +792,7 @@ const documentationService = {
       api.get('/documentation/workflow/stats', { headers: getAuthHeader() }),
       
   // Update document status
-  updateDocumentStatus: (docId: string, status: string, comment?: string) => {
+    updateStatus: (docId: string, status: string, comment?: string) => {
     const data: { status: string; comment?: string } = { status };
     if (comment) data.comment = comment;
     
