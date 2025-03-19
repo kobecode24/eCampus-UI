@@ -64,6 +64,7 @@ export function EnhancedDocumentationSidebar() {
   const [isDragging, setIsDragging] = useState(false)
   const [isCreatingDocument, setIsCreatingDocument] = useState(false)
   const [newDocumentName, setNewDocumentName] = useState("")
+  const [newDocumentParentId, setNewDocumentParentId] = useState<string | null>(null)
   
   // Template creation modal state
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -87,28 +88,28 @@ export function EnhancedDocumentationSidebar() {
     error
   } = useDocumentationStore();
   
-  // Replace your documentations state with the store's state
-  // const [documentations, setDocumentations] = useState<DocumentationDTO[]>([]);
-  // Replace with:
-  // const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
-  // Use the store instead:
+
   const selectedDoc = selectedDocumentation?.id || null;
+  
+  // Add this new state for document loading
+  const [isLoadingDoc, setIsLoadingDoc] = useState(false);
   
   // Update your useEffect to use the store's fetchDocumentations
   useEffect(() => {
     fetchDocumentations();
   }, [fetchDocumentations]);
   
-  // Update your handleDocSelect function to use the store
+  // Fix the handleDocSelect function to properly handle loading state
   const handleDocSelect = async (doc: DocumentationDTO) => {
     try {
-      // Set loading state if needed
+      // Set loading state
       setIsLoadingDoc(true);
       
-      // Fetch full documentation with sections
-      await fetchDocumentation(doc.id as string);
+      // Fetch sections for this documentation
+      // Use fetchDocumentSections from your store, not fetchDocumentation which doesn't exist
+      await fetchDocumentSections(doc.id as string);
       
-      // This will update the selectedDocumentation in the store
+      // Update the selected documentation in the store
       setSelectedDocumentation(doc);
       
       setIsLoadingDoc(false);
@@ -321,6 +322,8 @@ export function EnhancedDocumentationSidebar() {
                     newDocumentName={newDocumentName}
                     setNewDocumentName={setNewDocumentName}
                     handleCreateDocument={handleCreateDocument}
+                    newDocumentParentId={newDocumentParentId}
+                    setNewDocumentParentId={setNewDocumentParentId}
                   />
                   
                   {/* Create New Documentation button */}
@@ -501,6 +504,8 @@ interface DynamicDocumentTreeProps {
   newDocumentName: string;
   setNewDocumentName: (name: string) => void;
   handleCreateDocument: (docId: string) => void;
+  newDocumentParentId: string | null;
+  setNewDocumentParentId: (id: string | null) => void;
 }
 
 function DynamicDocumentTree({
@@ -513,7 +518,9 @@ function DynamicDocumentTree({
   setIsCreatingDocument,
   newDocumentName,
   setNewDocumentName,
-  handleCreateDocument
+  handleCreateDocument,
+  newDocumentParentId,
+  setNewDocumentParentId
 }: DynamicDocumentTreeProps) {
   return (
     <div className="space-y-1">
@@ -523,67 +530,25 @@ function DynamicDocumentTree({
             documentation={doc}
             isSelected={selectedDoc === doc.id}
             onSelect={() => onDocumentSelect(doc)}
-            onCreateDocument={() => setIsCreatingDocument(true)}
+            onCreateDocument={() => {
+              setNewDocumentParentId(doc.id as string);
+              setIsCreatingDocument(true);
+            }}
             selectedSection={selectedSection}
             onSectionSelect={onSectionSelect}
+            isCreatingDocument={isCreatingDocument && newDocumentParentId === doc.id}
+            newDocumentName={newDocumentName}
+            setNewDocumentName={setNewDocumentName}
+            handleCreateDocument={() => handleCreateDocument(doc.id as string)}
+            cancelCreateDocument={() => {
+              setIsCreatingDocument(false);
+              setNewDocumentParentId(null);
+            }}
           />
-          
-          {/* Show sections when document is selected */}
-          {selectedDoc === doc.id && doc.sections && (
-            <div className="ml-4 mt-1 space-y-1">
-              {doc.sections.map(section => (
-                <Button
-                  key={section.id}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onSectionSelect(section)}
-                  className={`w-full justify-start pl-6 ${
-                    selectedSection?.id === section.id 
-                      ? "bg-indigo-700/40 text-white" 
-                      : "text-indigo-300 hover:text-white hover:bg-indigo-700/30"
-                  }`}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  {section.title}
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
       ))}
       
-      {isCreatingDocument && selectedDoc && (
-        <div className="ml-4 mt-2 p-2 bg-indigo-800/40 rounded border border-indigo-500/30 animate-fadeIn">
-          <div className="flex items-center gap-2 mb-2">
-            <PlusCircle className="h-4 w-4 text-indigo-400" />
-            <span className="text-sm font-medium text-white">New Section</span>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={newDocumentName}
-              onChange={(e) => setNewDocumentName(e.target.value)}
-              placeholder="Section name"
-              autoFocus
-              className="h-8 text-sm bg-indigo-900/50 border-indigo-500/30 text-white"
-      />
-      <Button
-        size="sm"
-              className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => handleCreateDocument(selectedDoc)}
-      >
-              Add
-      </Button>
-      <Button
-        size="sm"
-              variant="outline"
-              className="h-8 p-0 w-8 bg-transparent border-indigo-500/30 text-indigo-300"
-              onClick={() => setIsCreatingDocument(false)}
-      >
-              <X className="h-4 w-4" />
-      </Button>
-          </div>
-        </div>
-      )}
+      {/* Remove the form from here as it will now be inside each folder */}
     </div>
   )
 }
@@ -595,6 +560,11 @@ interface DynamicDocumentFolderProps {
   onCreateDocument: () => void;
   selectedSection: DocumentationSectionDTO | null;
   onSectionSelect: (section: DocumentationSectionDTO) => void;
+  isCreatingDocument: boolean;
+  newDocumentName: string;
+  setNewDocumentName: (name: string) => void;
+  handleCreateDocument: () => void;
+  cancelCreateDocument: () => void;
 }
 
 function DynamicDocumentFolder({ 
@@ -603,9 +573,21 @@ function DynamicDocumentFolder({
   onSelect, 
   onCreateDocument,
   selectedSection,
-  onSectionSelect
+  onSectionSelect,
+  isCreatingDocument,
+  newDocumentName,
+  setNewDocumentName,
+  handleCreateDocument,
+  cancelCreateDocument
 }: DynamicDocumentFolderProps) {
-  const [isOpen, setIsOpen] = useState(isSelected);
+  const [isOpen, setIsOpen] = useState(isSelected || isCreatingDocument);
+  
+  // Force open when selected or creating a document
+  useEffect(() => {
+    if (isSelected || isCreatingDocument) {
+      setIsOpen(true);
+    }
+  }, [isSelected, isCreatingDocument]);
 
   const toggleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -624,7 +606,11 @@ function DynamicDocumentFolder({
   return (
     <div className="mb-1">
       <button
-        onClick={onSelect}
+        onClick={() => {
+          onSelect();
+          // Auto-expand when clicking on the document title
+          setIsOpen(true);
+        }}
         className={`w-full text-left px-3 py-2 rounded-md flex items-center justify-between group transition-colors duration-200 ${
           isSelected ? "bg-indigo-800/50" : "hover:bg-indigo-800/30"
         }`}
@@ -650,37 +636,71 @@ function DynamicDocumentFolder({
       </button>
 
       {isOpen && (
-          <div className="ml-4 mt-1 space-y-1 pl-2 border-l border-indigo-500/30">
-            {documentation.sections && documentation.sections.length > 0 ? (
-                documentation.sections.map((section) => (
-                    <button
-                        key={section.id}
-                        className={`w-full text-left px-3 py-1.5 rounded-md flex items-center text-sm transition-colors duration-200 ${
-                            selectedSection?.id === section.id
-                                ? "bg-indigo-700/60 text-white"
-                : "text-indigo-300 hover:text-white hover:bg-indigo-700/30"
-            }`}
-                        onClick={() => onSectionSelect(section)}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      <span className="truncate max-w-[160px]">{section.title}</span>
-                    </button>
-                ))
-            ) : (
-                <div className="text-indigo-400/60 text-xs px-2 py-1">No documents</div>
-            )}
-
+        <div className="ml-4 mt-1 space-y-1 pl-2 border-l border-indigo-500/30">
+          {documentation.sections && documentation.sections.length > 0 ? (
+            documentation.sections.map((section) => (
+              <button
+                key={section.id}
+                className={`w-full text-left px-3 py-1.5 rounded-md flex items-center text-sm transition-colors duration-200 ${
+                  selectedSection?.id === section.id
+                    ? "bg-indigo-700/60 text-white"
+                    : "text-indigo-300 hover:text-white hover:bg-indigo-700/30"
+                }`}
+                onClick={() => onSectionSelect(section)}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                <span className="truncate max-w-[160px]">{section.title}</span>
+              </button>
+            ))
+          ) : (
+            <div className="text-indigo-400/60 text-xs px-2 py-1">No documents</div>
+          )}
+          
+          {/* Show the New Document button or the creation form */}
+          {isCreatingDocument ? (
+            <div className="p-2 bg-indigo-800/40 rounded border border-indigo-500/30 animate-fadeIn mt-2">
+              <div className="flex items-center gap-2 mb-2">
+                <PlusCircle className="h-4 w-4 text-indigo-400" />
+                <span className="text-sm font-medium text-white">New Section</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newDocumentName}
+                  onChange={(e) => setNewDocumentName(e.target.value)}
+                  placeholder="Section name"
+                  autoFocus
+                  className="h-8 text-sm bg-indigo-900/50 border-indigo-500/30 text-white"
+                />
+                <Button
+                  size="sm"
+                  className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={handleCreateDocument}
+                >
+                  Add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 p-0 w-8 bg-transparent border-indigo-500/30 text-indigo-300"
+                  onClick={cancelCreateDocument}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
             <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCreateDocument();
-                }}
-                className="w-full flex items-center px-3 py-1.5 text-sm text-indigo-300 hover:text-white hover:bg-indigo-600/40 rounded-md transition-colors duration-200 border border-indigo-500/30 bg-indigo-800/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateDocument();
+              }}
+              className="w-full flex items-center px-3 py-1.5 text-sm text-indigo-300 hover:text-white hover:bg-indigo-600/40 rounded-md transition-colors duration-200 border border-indigo-500/30 bg-indigo-800/20"
             >
               <FilePlus className="h-4 w-4 mr-2" />
               <span>New Document</span>
             </button>
-      </div>
+          )}
+        </div>
       )}
     </div>
   );

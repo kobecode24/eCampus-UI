@@ -40,7 +40,7 @@ export function DocumentationWorkflowTools() {
             <h3 className="text-sm font-medium">Current Status</h3>
             <div className="flex items-center gap-3">
               <StatusBadge status={documentStatus} />
-              <div className="text-sm text-indigo-300">Last updated {lastUpdatedFormatted} ago by {lastModifiedByUsername}</div>
+              <div className="text-sm text-indigo-300">Last updated {lastUpdatedFormatted} by {lastModifiedByUsername}</div>
             </div>
           </div>
 
