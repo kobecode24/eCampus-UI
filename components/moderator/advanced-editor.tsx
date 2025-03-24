@@ -14,6 +14,7 @@ import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import CodeBlock from "@tiptap/extension-code-block"
+import { useTheme } from "@/contexts/theme-context"
 
 export function AdvancedEditor() {
   const [activeTab, setActiveTab] = useState("write")
@@ -23,6 +24,7 @@ export function AdvancedEditor() {
   const [isSaving, setIsSaving] = useState(false)
   const [showSaveSuccess, setShowSaveSuccess] = useState(false)
   const editorKey = useRef(0) // Add a key reference to force re-render
+  const { theme } = useTheme()
   
   // Connect to documentation store
   const { selectedSection, updateSection } = useDocumentationStore()
@@ -46,6 +48,126 @@ export function AdvancedEditor() {
   const handleContentChange = (html: string) => {
     setContent(html)
   }
+
+  // Create a read-only preview editor instance
+  const previewEditor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Disable CodeBlock to prevent conflicts
+        codeBlock: false,
+      }),
+      Link.configure({
+        openOnClick: true,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "rounded-md max-w-full",
+        },
+      }),
+      CodeBlock.configure({
+        HTMLAttributes: {
+          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
+        },
+      }),
+    ],
+    content,
+    editable: false, // Read-only for preview
+    immediatelyRender: false, // Fix SSR issues
+  })
+
+  // Update preview editor content when main content changes
+  useEffect(() => {
+    if (previewEditor && content) {
+      previewEditor.commands.setContent(content)
+    }
+  }, [content, previewEditor])
+
+  // Custom styles to prevent background flashes
+  const customStyles = `
+    <style>
+      /* Make editor transition properly with theme changes */
+      .enhanced-editor.preview-editor, 
+      .enhanced-editor.preview-editor *,
+      .preview-editor .ProseMirror,
+      .preview-editor .ProseMirror *,
+      .preview-editor .glass-panel,
+      .preview-editor .glass-panel * {
+        transition: background-color 0.2s ease, color 0.2s ease !important;
+        background-color: transparent !important;
+      }
+      
+      /* Ensure hover states don't change background */
+      .preview-editor .ProseMirror:hover,
+      .preview-editor .ProseMirror:focus,
+      .preview-editor .ProseMirror:active,
+      .preview-editor .ProseMirror *:hover,
+      .preview-editor .ProseMirror *:focus,
+      .preview-editor .ProseMirror *:active {
+        background-color: transparent !important;
+        cursor: default !important;
+      }
+      
+      /* Set the glass panel styling for dark mode */
+      .dark .preview-editor .glass-panel {
+        background-color: rgba(15, 23, 42, 0.3) !important;
+        backdrop-filter: blur(4px) !important;
+        box-shadow: none !important;
+      }
+      
+      /* Set the glass panel styling for light mode */
+      .light .preview-editor .glass-panel {
+        background-color: rgba(255, 255, 255, 0.5) !important;
+        backdrop-filter: blur(4px) !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05) !important;
+      }
+      
+      /* Fix code blocks to maintain their styling */
+      .dark .preview-editor pre {
+        background: rgb(30 27 75) !important;
+      }
+      
+      .light .preview-editor pre {
+        background: rgb(241 245 249) !important;
+      }
+      
+      /* Set text colors for dark and light modes */
+      .dark .preview-editor .prose {
+        color: #f8fafc !important;
+      }
+      
+      .light .preview-editor .prose {
+        color: #0f172a !important;
+      }
+      
+      .preview-editor .prose {
+        max-width: none !important;
+      }
+      
+      /* Text color adjustments for dark mode */
+      .dark .preview-editor h1, 
+      .dark .preview-editor h2, 
+      .dark .preview-editor h3, 
+      .dark .preview-editor h4, 
+      .dark .preview-editor h5, 
+      .dark .preview-editor h6 {
+        color: #f1f5f9 !important;
+      }
+      
+      .dark .preview-editor p, 
+      .dark .preview-editor li, 
+      .dark .preview-editor blockquote {
+        color: #e2e8f0 !important;
+      }
+      
+      /* Selection styling that works with both modes */
+      .preview-editor ::selection {
+        background-color: rgba(79, 70, 229, 0.2) !important;
+      }
+    </style>
+  `
 
   const handleSave = async () => {
     if (!selectedSection?.id) {
@@ -98,38 +220,6 @@ export function AdvancedEditor() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
-
-  // Create a read-only preview editor instance
-  const previewEditor = useEditor({
-    extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-md max-w-full",
-        },
-      }),
-      CodeBlock.configure({
-        HTMLAttributes: {
-          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
-        },
-      }),
-    ],
-    content,
-    editable: false, // Read-only for preview
-  })
-
-  // Update preview editor content when main content changes
-  useEffect(() => {
-    if (previewEditor && content) {
-      previewEditor.commands.setContent(content)
-    }
-  }, [content, previewEditor])
 
   if (!isMounted) {
     return (
@@ -223,12 +313,13 @@ export function AdvancedEditor() {
             </div>
           </TabsContent>
           
-          {/* Improved Preview tab with actual TipTap instance */}
+          {/* Improved Preview tab with properly styled TipTap editor */}
           <TabsContent value="preview" className="h-full m-0 overflow-auto">
-            <div className="enhanced-editor">
+            <div className={`enhanced-editor preview-editor ${theme}`}>
               <EnhancedEditorStyles />
+              <div dangerouslySetInnerHTML={{ __html: customStyles }} />
               <div className="glass-panel rounded-md overflow-hidden">
-                <div className="prose max-w-none p-6 custom-scrollbar">
+                <div className="prose prose-invert max-w-none p-6 custom-scrollbar">
                   {/* Use EditorContent for consistent rendering */}
                   {previewEditor ? (
                     <EditorContent editor={previewEditor} className="prose max-w-none" />
