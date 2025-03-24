@@ -19,6 +19,7 @@ import {
   Lightbulb,
   Maximize,
   Minimize,
+  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,6 +29,14 @@ import { useTheme } from "@/contexts/theme-context"
 import { useDocContext } from "./enhanced-documentation-layout"
 import { cn } from "@/lib/utils"
 import type React from "react"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
+import { DocumentationDTO, DocumentationSectionDTO } from "@/app/types/documentation"
+import { documentationService } from "@/services/api"
+import { useEditor, EditorContent } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import Link from "@tiptap/extension-link"
+import Image from "@tiptap/extension-image"
+import CodeBlockExtension from "@tiptap/extension-code-block"
 
 // Sample code for demo purposes
 const sampleCode = `import { useState } from 'react';
@@ -66,6 +75,60 @@ const diagramData = {
   ],
 }
 
+// Create a component for rendering content with TipTap
+function ContentRenderer({ content }: { content: string }) {
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // Create a read-only TipTap editor for rendering content
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: true,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "rounded-md max-w-full",
+        },
+      }),
+      CodeBlockExtension.configure({
+        HTMLAttributes: {
+          class: "bg-gray-900 text-gray-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
+        },
+      }),
+    ],
+    content,
+    editable: false,
+  })
+  
+  // Handle client-side rendering
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+  
+  // Update content when it changes
+  useEffect(() => {
+    if (editor && content) {
+      editor.commands.setContent(content)
+    }
+  }, [editor, content])
+  
+  if (!isMounted) {
+    return <div className="h-6 w-full animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+  }
+  
+  return editor ? (
+    <EditorContent editor={editor} className="prose max-w-none" />
+  ) : (
+    <div className="h-6 w-full animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+  )
+}
+
 export function EnhancedDocContent() {
   const { theme } = useTheme()
   const {
@@ -79,6 +142,8 @@ export function EnhancedDocContent() {
     viewMode,
     setCursorVariant,
     useStandardScrolling,
+    readingProgress,
+    setReadingProgress,
   } = useDocContext()
 
   const [isClient, setIsClient] = useState(false)
@@ -87,10 +152,13 @@ export function EnhancedDocContent() {
   const [activeCodeTab, setActiveCodeTab] = useState("preview")
   const [diagramHover, setDiagramHover] = useState<string | null>(null)
   const [readingTime, setReadingTime] = useState(5)
-  const [readingProgress, setReadingProgress] = useState(0)
 
   const contentRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({})
+
+  // Add a new state to track scrolling activity
+  const [isScrolling, setIsScrolling] = useState(false)
+  const [scrollTimer, setScrollTimer] = useState<NodeJS.Timeout | null>(null)
 
   // Get scroll progress for animations
   const { scrollYProgress } = useScroll({
@@ -101,6 +169,76 @@ export function EnhancedDocContent() {
   // Transform values for parallax effects - make them more subtle if standard scrolling is enabled
   const titleY = useTransform(scrollYProgress, [0, 0.1], useStandardScrolling ? [0, 0] : [0, -10])
   const subtitleOpacity = useTransform(scrollYProgress, [0, 0.05, 0.1], useStandardScrolling ? [1, 1, 1] : [1, 0.8, 0])
+
+  // Add this near the top of the file where other state is declared
+  const [localReadingProgress, setLocalReadingProgress] = useState(0);
+  const [showProgressBar, setShowProgressBar] = useState(false);
+  const progressBarTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Get selected documentation from store
+  const { selectedDocumentation, selectedSection } = useDocumentationStore();
+
+  // Add these new states
+  const [isMounted, setIsMounted] = useState(false)
+  const [contentToDisplay, setContentToDisplay] = useState("")
+
+  // Initialize the TipTap editor
+  const contentViewer = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: true,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "rounded-md max-w-full",
+        },
+      }),
+      CodeBlockExtension.configure({
+        HTMLAttributes: {
+          class: "bg-gray-900 text-gray-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
+        },
+      }),
+    ],
+    content: contentToDisplay,
+    editable: false,
+  })
+
+  // Update reading time when documentation changes
+  useEffect(() => {
+    if (selectedDocumentation?.id) {
+      // Fetch reading time from API
+      documentationService.getDocumentationReadingTime(selectedDocumentation.id)
+        .then(response => {
+          setReadingTime(response.data.data.readingTimeMinutes);
+        })
+        .catch(error => console.error('Error fetching reading time:', error));
+    }
+  }, [selectedDocumentation?.id]);
+
+  // Update content scroll tracking
+  useEffect(() => {
+    if (!contentRef.current) return;
+
+    const updateReadingProgress = () => {
+      const scrollTop = window.scrollY;
+      const scrollHeight = contentRef.current!.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      const progress = scrollTop / (scrollHeight - clientHeight);
+      setReadingProgress(Math.min(Math.max(progress, 0), 1));
+    };
+
+    window.addEventListener("scroll", updateReadingProgress);
+    updateReadingProgress();
+
+    return () => window.removeEventListener("scroll", updateReadingProgress);
+  }, [selectedDocumentation]);
 
   // Initialize client-side state
   useEffect(() => {
@@ -157,7 +295,32 @@ export function EnhancedDocContent() {
       observer.disconnect()
       window.removeEventListener("scroll", updateReadingProgress)
     }
-  }, [setActiveSection, markSectionAsRead])
+  }, [setActiveSection, markSectionAsRead, setReadingProgress])
+
+  // Add scroll event listener to track scrolling activity
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolling(true)
+      
+      // Clear previous timer if exists
+      if (scrollTimer) {
+        clearTimeout(scrollTimer)
+      }
+      
+      // Set a new timer to hide the progress bar after scrolling stops
+      const timer = setTimeout(() => {
+        setIsScrolling(false)
+      }, 1500) // Hide after 1.5 seconds of no scrolling
+      
+      setScrollTimer(timer)
+    }
+    
+    window.addEventListener("scroll", handleScroll)
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      if (scrollTimer) clearTimeout(scrollTimer)
+    }
+  }, [scrollTimer])
 
   // Toggle code block expansion
   const toggleCodeBlockExpansion = (blockId: string) => {
@@ -600,10 +763,43 @@ export function EnhancedDocContent() {
     )
   }
 
+  // Set isMounted on client-side
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+  
+  // Update the content to display when section or documentation changes
+  useEffect(() => {
+    if (selectedSection && selectedSection.content) {
+      setContentToDisplay(selectedSection.content)
+    } else if (selectedDocumentation && selectedDocumentation.content) {
+      setContentToDisplay(selectedDocumentation.content)
+    } else {
+      setContentToDisplay("")
+    }
+  }, [selectedSection, selectedDocumentation])
+  
+  // Update the editor content when contentToDisplay changes
+  useEffect(() => {
+    if (contentViewer && contentToDisplay) {
+      contentViewer.commands.setContent(contentToDisplay)
+    }
+  }, [contentViewer, contentToDisplay])
+
+  // Client-side rendering
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   if (!isClient) {
+    return <div className="h-96 animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+  }
+
+  // If no documentation or section is selected, show a placeholder
+  if (!selectedDocumentation && !selectedSection) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="loading-spinner"></div>
+      <div className="flex flex-col items-center justify-center h-96">
+        <p className="text-muted-foreground">Select a document to view its content</p>
       </div>
     )
   }
@@ -613,312 +809,119 @@ export function EnhancedDocContent() {
       {/* Title and metadata */}
       <motion.div className="mb-8 pb-4" style={{ y: titleY }}>
         <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-bold tracking-tight text-primary">Getting Started</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-primary">
+            {selectedDocumentation?.title || 'Untitled Document'}
+          </h1>
 
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="px-2 py-0.5">
               {readingTime} min read
             </Badge>
             <Badge variant="secondary" className="px-2 py-0.5">
-              Beginner
+              {selectedDocumentation?.technology || 'Unknown'}
             </Badge>
           </div>
         </div>
 
-        <motion.p className="text-xl text-muted-foreground mt-2" style={{ opacity: subtitleOpacity }}>
-          Everything you need to know to get up and running with our platform.
-        </motion.p>
+        {/* Main content with TipTap renderer */}
+        <motion.div className="mt-4" style={{ opacity: subtitleOpacity }}>
+          {contentViewer && (
+            <EditorContent editor={contentViewer} className="prose max-w-none" />
+          )}
+        </motion.div>
 
         {/* Reading progress */}
         <div className="mt-4 flex items-center gap-2">
           <div className="h-2 flex-1 bg-accent/20 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-primary"
-              style={{ width: `${readingProgress * 100}%` }}
-              initial={{ width: "0%" }}
-              animate={{ width: `${readingProgress * 100}%` }}
-              transition={useStandardScrolling ? { duration: 0 } : { type: "spring", bounce: 0.2 }}
-            />
+              style={{ width: `${readingProgress}%` }}
+            ></motion.div>
           </div>
-          <span className="text-xs text-muted-foreground">{Math.round(readingProgress * 100)}%</span>
+          <span className="text-xs text-muted-foreground">{readingProgress}%</span>
         </div>
       </motion.div>
 
-      {/* Introduction section */}
-      <Section id="introduction" title="Introduction">
-        <p className="leading-7 mb-4">
-          Welcome to our comprehensive documentation. This guide will help you understand how to use our platform
-          effectively and get the most out of its features.
-        </p>
-
-        <p className="leading-7 mb-4">
-          Our platform is designed to help developers build, deploy, and scale applications with ease. Whether you're a
-          beginner or an experienced developer, you'll find everything you need to get started.
-        </p>
-
-        <Note type="tip" title="Pro Tip">
-          Bookmark sections you frequently reference for quicker access in the future. Your bookmarks are saved
-          automatically.
-        </Note>
-
-        <p className="leading-7 mb-4">
-          This documentation is organized into logical sections that build upon each other. We recommend starting from
-          the beginning if you're new to the platform, but feel free to jump to specific sections if you're looking for
-          particular information.
-        </p>
-      </Section>
-
-      {/* Installation section */}
-      <Section id="installation" title="Installation">
-        <p className="leading-7 mb-4">
-          Getting started with our platform is easy. You can install it using npm, yarn, or pnpm.
-        </p>
-
-        <Tabs defaultValue="npm" className="my-6">
-          <TabsList>
-            <TabsTrigger
-              value="npm"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              npm
-            </TabsTrigger>
-            <TabsTrigger
-              value="yarn"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              yarn
-            </TabsTrigger>
-            <TabsTrigger
-              value="pnpm"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              pnpm
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="npm">
-            <CodeBlock
-              id="npm-install"
-              language="bash"
-              code="npm install @our-platform/core @our-platform/ui"
-              showLineNumbers={false}
-            />
-          </TabsContent>
-          <TabsContent value="yarn">
-            <CodeBlock
-              id="yarn-install"
-              language="bash"
-              code="yarn add @our-platform/core @our-platform/ui"
-              showLineNumbers={false}
-            />
-          </TabsContent>
-          <TabsContent value="pnpm">
-            <CodeBlock
-              id="pnpm-install"
-              language="bash"
-              code="pnpm add @our-platform/core @our-platform/ui"
-              showLineNumbers={false}
-            />
-          </TabsContent>
-        </Tabs>
-
-        <p className="leading-7 mb-4">
-          After installation, you'll need to configure your project to use our platform. Create a configuration file in
-          the root of your project:
-        </p>
-
-        <CodeBlock
-          id="config-file"
-          language="javascript"
-          code={`// platform.config.js
-module.exports = {
-  apiKey: process.env.PLATFORM_API_KEY,
-  project: 'my-awesome-project',
-  features: {
-    authentication: true,
-    storage: true,
-    analytics: false,
-  },
-}`}
-          filename="platform.config.js"
-        />
-
-        <Section id="environment-setup" title="Environment Setup" level={3}>
-          <p className="leading-7 mb-4">
-            You'll need to set up environment variables for your project. Create a{" "}
-            <code className="bg-accent/20 px-1 py-0.5 rounded text-sm">.env</code> file in the root of your project with
-            the following variables:
-          </p>
-
-          <CodeBlock
-            id="env-file"
-            language="bash"
-            code={`PLATFORM_API_KEY=your_api_key_here
-PLATFORM_PROJECT_ID=your_project_id
-PLATFORM_ENVIRONMENT=development`}
-            filename=".env"
-            showLineNumbers={false}
-          />
-
-          <Note type="warning" title="Security Note">
-            Never commit your <code className="bg-accent/20 px-1 py-0.5 rounded text-sm">.env</code> file to version
-            control. Add it to your <code className="bg-accent/20 px-1 py-0.5 rounded text-sm">.gitignore</code> file to
-            prevent accidental exposure of sensitive information.
-          </Note>
+      {/* Dynamic Sections */}
+      {selectedDocumentation?.sections?.map((section) => (
+        <Section 
+          key={section.id} 
+          id={section.sectionId || section.id?.toString() || ''}
+          title={section.title} 
+          level={2}
+        >
+          {/* Use the ContentRenderer for section content */}
+          <ContentRenderer content={section.content} />
         </Section>
-      </Section>
+      ))}
 
-      {/* Quick Start section */}
-      <Section id="quick-start" title="Quick Start Guide">
-        <p className="leading-7 mb-4">
-          Let's create a simple application to demonstrate how to use our platform. First, initialize your project:
-        </p>
-
-        <CodeBlock
-          id="quick-start-code"
-          language="javascript"
-          code={`import { createApp } from '@our-platform/core';
-import { Button, Card } from '@our-platform/ui';
-
-const app = createApp({
-  // Your configuration here
-});
-
-function MyComponent() {
-  return (
-    <Card>
-      <h2>Hello, World!</h2>
-      <Button>Click me</Button>
-    </Card>
-  );
-}
-
-app.render(<MyComponent />, document.getElementById('root'));`}
-          filename="app.js"
-        />
-
-        <p className="leading-7 my-4">
-          This simple example demonstrates how to create an application using our platform. You can extend it by adding
-          more components and features.
-        </p>
-
-        <Section id="component-structure" title="Component Structure" level={3}>
-          <p className="leading-7 mb-4">
-            Our platform uses a component-based architecture. Here's a simple breakdown of how components work:
-          </p>
-
-          <InteractiveDiagram />
-
-          <p className="leading-7 mt-4">
-            Components can be composed together to create complex interfaces. Each component is responsible for a
-            specific piece of functionality.
-          </p>
-        </Section>
-      </Section>
-
-      {/* Architecture section */}
-      <Section id="architecture" title="Architecture Overview">
-        <p className="leading-7 mb-4">
-          Our platform follows a modular architecture that allows you to use only the features you need. Here's a
-          high-level overview of the architecture:
-        </p>
-
-        <div className="my-8 p-6 rounded-lg border border-border bg-card/30">
-          <div className="flex flex-col space-y-4">
-            <div
-              className={`p-4 rounded-lg ${theme === "dark" ? "bg-primary/10" : "bg-primary/5"} border border-primary/20`}
-            >
-              <h4 className="font-medium mb-2">Application Layer</h4>
-              <p className="text-sm">Handles the core application logic and state management.</p>
-            </div>
-
-            <div className="flex justify-center">
-              <ChevronDown className="h-6 w-6 text-muted-foreground" />
-            </div>
-
-            <div
-              className={`p-4 rounded-lg ${theme === "dark" ? "bg-blue-900/10" : "bg-blue-50"} border border-blue-200`}
-            >
-              <h4 className="font-medium mb-2">Service Layer</h4>
-              <p className="text-sm">Provides services like authentication, data fetching, and storage.</p>
-            </div>
-
-            <div className="flex justify-center">
-              <ChevronDown className="h-6 w-6 text-muted-foreground" />
-            </div>
-
-            <div
-              className={`p-4 rounded-lg ${theme === "dark" ? "bg-green-900/10" : "bg-green-50"} border border-green-200`}
-            >
-              <h4 className="font-medium mb-2">UI Layer</h4>
-              <p className="text-sm">Contains reusable UI components and styling utilities.</p>
-            </div>
+      {/* Documentation footer */}
+      <div className="mt-16 pt-8 border-t border-border flex flex-col gap-3">
+        <div className="flex justify-between items-center text-sm text-muted-foreground">
+          <div>
+            <p>Last updated: {selectedDocumentation?.lastUpdatedAt ? new Date(selectedDocumentation.lastUpdatedAt).toLocaleDateString() : 'Unknown'}</p>
+            <p>Author: {selectedDocumentation?.authorUsername || 'Unknown'}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="px-2 py-0.5 flex items-center gap-1">
+              <Eye className="h-3 w-3" />
+              {selectedDocumentation?.views || 0} views
+            </Badge>
           </div>
         </div>
 
-        <p className="leading-7 mb-4">
-          This architecture allows for a clean separation of concerns and makes it easy to test and maintain your
-          application.
-        </p>
-
-        <Note type="success" title="Best Practice">
-          Follow the principle of separation of concerns by keeping your UI components separate from your business
-          logic. This makes your code more maintainable and easier to test.
-        </Note>
-      </Section>
-
-      {/* Navigation footer */}
-      <div className="border-t border-border pt-8 mt-12">
-        <div className="flex justify-between items-center">
+        {/* Navigation buttons */}
+        <div className="flex justify-between mt-4">
           <Button
             variant="outline"
             className="gap-2"
-            onMouseEnter={() => setCursorVariant("button")}
-            onMouseLeave={() => setCursorVariant("default")}
+            onClick={() => navigateToPreviousSection()}
+            disabled={!getPreviousSection()}
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Previous: Overview</span>
+            <span>Previous: {getPreviousSection()?.title || 'None'}</span>
           </Button>
 
           <Button
             className="gap-2"
-            onMouseEnter={() => setCursorVariant("button")}
-            onMouseLeave={() => setCursorVariant("default")}
+            onClick={() => navigateToNextSection()}
+            disabled={!getNextSection()}
           >
-            <span>Next: Core Concepts</span>
+            <span>Next: {getNextSection()?.title || 'None'}</span>
             <ArrowRight className="h-4 w-4" />
           </Button>
-        </div>
-
-        <div className="mt-8 pt-4 border-t border-border text-sm text-muted-foreground">
-          <div className="flex items-center gap-2 mb-1">
-            <LinkIcon className="h-4 w-4" />
-            <span>Share this page:</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              Twitter
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              GitHub
-            </Button>
-          </div>
-          <p>This page was last updated on April 8, 2024.</p>
         </div>
       </div>
     </div>
   )
+}
+
+// Helper functions for content parsing and navigation
+function extractCodeFromContent(content: string): string {
+  const codeMatch = content.match(/```[\s\S]*?```/);
+  return codeMatch ? codeMatch[0].replace(/```/g, '').trim() : '';
+}
+
+function extractFilenameFromContent(content: string): string | undefined {
+  const filenameMatch = content.match(/filename:\s*([^\n]+)/);
+  return filenameMatch ? filenameMatch[1].trim() : undefined;
+}
+
+function getPreviousSection(): DocumentationSectionDTO | undefined {
+  // Implement logic to get previous section
+  return undefined;
+}
+
+function getNextSection(): DocumentationSectionDTO | undefined {
+  // Implement logic to get next section
+  return undefined;
+}
+
+function navigateToPreviousSection() {
+  // Implement navigation logic
+}
+
+function navigateToNextSection() {
+  // Implement navigation logic
 }
 

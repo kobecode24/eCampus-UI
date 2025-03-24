@@ -235,7 +235,7 @@ const authService = {
         // Start token refresh monitor
         if (typeof window !== 'undefined' && !!localStorage.getItem('token')) {
           console.log('[Token Monitor] Starting token refresh monitor after login');
-          window.setupTokenRefresh();
+          //window.setupTokenRefresh();
         }
       }, 100);
       
@@ -806,6 +806,82 @@ const documentationService = {
     sectionId: string;
     orderIndex: number;
   }>) => api.put(`/documentation/sections/${sectionId}`, data, { headers: getAuthHeader() }),
+
+  // Get documentation by technology type
+  getDocumentationByTechnology: (technology: string, page = 0, size = 20) =>
+    api.get(`/documentation/technology/${technology}?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Get documentation by tag
+  getDocumentationByTag: (tag: string, page = 0, size = 20) =>
+    api.get(`/documentation/tag/${tag}?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Get documentation by author
+  getDocumentationByAuthor: (authorId: string, page = 0, size = 20) =>
+    api.get(`/documentation/author/${authorId}?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Get most viewed documentation
+  getMostViewedDocumentation: (page = 0, size = 20) =>
+    api.get(`/documentation/popular?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Search documentation
+  searchDocumentation: (query: string, page = 0, size = 20) =>
+    api.get(`/documentation/search?query=${query}&page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Search sections
+  searchSections: (query: string, page = 0, size = 20) =>
+    api.get(`/documentation/sections/search?query=${query}&page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Increment views
+  incrementViews: (docId: string) =>
+    api.post(`/documentation/${docId}/views`, {}, { headers: getAuthHeader() }),
+
+  // Delete documentation
+  deleteDocumentation: (docId: string) =>
+    api.delete(`/documentation/${docId}`, { headers: getAuthHeader() }),
+
+  // Get documentation sections
+  getDocumentationSections: (docId: string) =>
+    api.get(`/documentation/${docId}/sections`, { headers: getAuthHeader() }),
+
+  // Get documentation reading time
+  getDocumentationReadingTime: (docId: string) =>
+    api.get(`/documentation/${docId}/reading-time`, { headers: getAuthHeader() }),
+
+  // Get documentation status distribution
+  getDocumentStatusDistribution: () =>
+    api.get('/documentation/stats/status-distribution', { headers: getAuthHeader() }),
+
+  // Get documentation technology distribution
+  getDocumentTechnologyDistribution: () =>
+    api.get('/documentation/stats/technology-distribution', { headers: getAuthHeader() }),
+
+  // Get documentation by status
+  getDocumentationByStatus: (status: string, page = 0, size = 20) =>
+    api.get(`/documentation/status/${status}?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Reorder sections
+  reorderSections: (docId: string, orderedSections: Array<{ id: string }>) =>
+    api.put(`/documentation/${docId}/structure/reorder`, orderedSections, { headers: getAuthHeader() }),
+
+  // Count by status
+  countByStatus: (status: string) =>
+    api.get(`/documentation/count/${status}`, { headers: getAuthHeader() }),
+
+  // Get documentation statistics summary
+  getStatisticsSummary: () =>
+    api.get('/moderator/documentation/statistics/summary', { headers: getAuthHeader() }),
+
+  // Get documentation queue
+  getModeratorQueue: (page = 0, size = 10) =>
+    api.get(`/moderator/documentation/queue?page=${page}&size=${size}`, { headers: getAuthHeader() }),
+
+  // Submit review
+  submitReview: (docId: string, reviewData: { approved: boolean, feedback: string }) =>
+    api.post(`/moderator/documentation/${docId}/review`, reviewData, { headers: getAuthHeader() }),
+
+  // Get moderator analytics
+  getModeratorAnalytics: () =>
+    api.get('/moderator/documentation/analytics', { headers: getAuthHeader() }),
 }
 
 // Add JWT token interface

@@ -8,6 +8,12 @@ import { EnhancedTipTapEditor } from "./enhanced-tiptap-editor"
 import { Eye, Code, PenTool, Save, Copy, Download, RefreshCw } from "lucide-react"
 import { useDocumentationStore } from "@/stores/useDocumentationStore"
 import { toast } from "@/components/ui/use-toast"
+import { EnhancedEditorStyles } from "./enhanced-editor-styles"
+import { useEditor, EditorContent } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import Link from "@tiptap/extension-link"
+import Image from "@tiptap/extension-image"
+import CodeBlock from "@tiptap/extension-code-block"
 
 export function AdvancedEditor() {
   const [activeTab, setActiveTab] = useState("write")
@@ -92,6 +98,38 @@ export function AdvancedEditor() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
+
+  // Create a read-only preview editor instance
+  const previewEditor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
+        },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "rounded-md max-w-full",
+        },
+      }),
+      CodeBlock.configure({
+        HTMLAttributes: {
+          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
+        },
+      }),
+    ],
+    content,
+    editable: false, // Read-only for preview
+  })
+
+  // Update preview editor content when main content changes
+  useEffect(() => {
+    if (previewEditor && content) {
+      previewEditor.commands.setContent(content)
+    }
+  }, [content, previewEditor])
 
   if (!isMounted) {
     return (
@@ -185,8 +223,24 @@ export function AdvancedEditor() {
             </div>
           </TabsContent>
           
-          <TabsContent value="preview" className="h-full m-0 overflow-auto p-6 prose prose-invert max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: content }} />
+          {/* Improved Preview tab with actual TipTap instance */}
+          <TabsContent value="preview" className="h-full m-0 overflow-auto">
+            <div className="enhanced-editor">
+              <EnhancedEditorStyles />
+              <div className="glass-panel rounded-md overflow-hidden">
+                <div className="prose max-w-none p-6 custom-scrollbar">
+                  {/* Use EditorContent for consistent rendering */}
+                  {previewEditor ? (
+                    <EditorContent editor={previewEditor} className="prose max-w-none" />
+                  ) : (
+                    <div className="flex items-center justify-center p-4">
+                      <div className="w-6 h-6 border-t-2 border-indigo-500 rounded-full animate-spin mr-2"></div>
+                      <span>Loading preview...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </TabsContent>
           
           <TabsContent value="html" className="h-full m-0">

@@ -26,3 +26,32 @@ export interface DocumentationSectionDTO {
     lastUpdatedAt?: string;
     lastModifiedBy?: string;
 }
+
+export interface DocumentationReviewData {
+  approved: boolean;
+  feedback: string;
+}
+
+export interface DocumentationStats {
+  statusDistribution: Record<string, number>;
+  technologyDistribution: Record<string, number>;
+  readingTime: number;
+  totalViews: number;
+}
+
+export interface ModeratorQueueItem {
+  id: string;
+  title: string;
+  status: string;
+  submittedAt: Date;
+  author: string;
+}
+
+export interface DocumentationWithSections extends DocumentationDTO {
+  sections: DocumentationSectionDTO[];
+}
+
+export interface ReadingTimeResponse {
+  readingTimeMinutes: number;
+  readingTimeFormatted: string;
+}

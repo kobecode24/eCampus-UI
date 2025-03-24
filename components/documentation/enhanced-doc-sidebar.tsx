@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, Server, Database, Layout, Search, Home, Eye, Layers, Cpu, Globe } from "lucide-react"
+import { ChevronDown, Search, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -24,13 +24,33 @@ import {
 import { useTheme } from "@/contexts/theme-context"
 import { useDocContext } from "./enhanced-documentation-layout"
 import { cn } from "@/lib/utils"
+import { getTechnologyIcon, getTechnologyColor } from "./technology-icons"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
+import { DocumentationDTO, DocumentationSectionDTO } from "@/app/types/documentation"
+import React from "react"
 
-// Enhanced sidebar data with icons and metadata
-const sidebarData = [
+// Define types for the static items to fix linter error
+interface StaticItem {
+  id: string;
+  label: string;
+  isNew: boolean;
+  isUpdated: boolean;
+}
+
+interface StaticCategory {
+  id: string;
+  label: string;
+  technologyType: string;
+  description: string;
+  items: StaticItem[];
+}
+
+// Fallback static data for when no real documentation exists
+const fallbackSidebarData: StaticCategory[] = [
   {
     id: "getting-started",
     label: "Getting Started",
-    icon: Home,
+    technologyType: "GETTING_STARTED",
     description: "Introduction and setup guides",
     items: [
       { id: "introduction", label: "Introduction", isNew: false, isUpdated: false },
@@ -42,7 +62,7 @@ const sidebarData = [
   {
     id: "core-concepts",
     label: "Core Concepts",
-    icon: Layers,
+    technologyType: "FRAMEWORK",
     description: "Fundamental concepts and principles",
     items: [
       { id: "components", label: "Components", isNew: false, isUpdated: false },
@@ -54,7 +74,7 @@ const sidebarData = [
   {
     id: "api-reference",
     label: "API Reference",
-    icon: Server,
+    technologyType: "API",
     description: "Detailed API documentation",
     items: [
       { id: "rest-api", label: "REST API", isNew: false, isUpdated: false },
@@ -66,7 +86,7 @@ const sidebarData = [
   {
     id: "frontend",
     label: "Frontend",
-    icon: Layout,
+    technologyType: "FRONTEND",
     description: "User interface components and design",
     items: [
       { id: "ui-components", label: "UI Components", isNew: false, isUpdated: false },
@@ -78,7 +98,7 @@ const sidebarData = [
   {
     id: "backend",
     label: "Backend",
-    icon: Database,
+    technologyType: "BACKEND",
     description: "Server-side implementation details",
     items: [
       { id: "database", label: "Database", isNew: false, isUpdated: false },
@@ -90,7 +110,7 @@ const sidebarData = [
   {
     id: "advanced",
     label: "Advanced",
-    icon: Cpu,
+    technologyType: "ADVANCED",
     description: "Advanced techniques and optimizations",
     items: [
       { id: "optimization", label: "Optimization", isNew: false, isUpdated: false },
@@ -102,7 +122,7 @@ const sidebarData = [
   {
     id: "resources",
     label: "Resources",
-    icon: Globe,
+    technologyType: "RESOURCES",
     description: "Additional resources and references",
     items: [
       { id: "examples", label: "Examples", isNew: false, isUpdated: false },
@@ -111,14 +131,93 @@ const sidebarData = [
       { id: "community", label: "Community", isNew: false, isUpdated: false },
     ],
   },
-]
+];
+
+// Get only the Getting Started section
+const gettingStartedData = fallbackSidebarData.find(category => 
+  category.technologyType === "GETTING_STARTED"
+);
+
+
+const isNewDocument = (createdAt?: string): boolean => {
+  if (!createdAt) return false;
+  
+  const created = new Date(createdAt);
+  const now = new Date(); // Dynamic current time
+  
+  const diffInHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  return diffInHours < 24;
+};
+
+// Add helper function for recently updated documents
+const isRecentlyUpdated = (createdAt?: string, lastUpdatedAt?: string): boolean => {
+  if (!createdAt || !lastUpdatedAt) return false;
+  
+  const created = new Date(createdAt);
+  const updated = new Date(lastUpdatedAt);
+  const now = new Date(); // Dynamic current time
+  
+  const createdDiffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  const updatedDiffHours = (now.getTime() - updated.getTime()) / (1000 * 60 * 60);
+  
+  // Document is UPDATED if:
+  // 1. It's more than 24 hours old (not new)
+  // 2. It was updated in the last 24 hours
+  // 3. The update timestamp is different from creation timestamp
+  return createdDiffHours >= 24 && updatedDiffHours < 24 && created.getTime() !== updated.getTime();
+};
+
+// Add this helper function for sections
+const isNewSection = (section: DocumentationSectionDTO): boolean => {
+  return isNewDocument(section.createdAt);
+};
+
+// Add helper function for recently updated sections
+const isRecentlyUpdatedSection = (section: DocumentationSectionDTO): boolean => {
+  if (!section.createdAt || !section.lastUpdatedAt) return false;
+  
+  const created = new Date(section.createdAt);
+  const updated = new Date(section.lastUpdatedAt);
+  const now = new Date(); // Dynamic current time
+  
+  const createdDiffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  const updatedDiffHours = (now.getTime() - updated.getTime()) / (1000 * 60 * 60);
+  
+  // Log for debugging
+  console.log(`Section ${section.title}:`, {
+    created: created.toISOString(),
+    updated: updated.toISOString(),
+    createdDiffHours,
+    updatedDiffHours,
+    isUpdated: createdDiffHours >= 24 && updatedDiffHours < 24 && created.getTime() !== updated.getTime()
+  });
+  
+  // Section is UPDATED if:
+  // 1. It's more than 24 hours old (not new)
+  // 2. It was updated in the last 24 hours
+  // 3. The update timestamp is different from creation timestamp
+  return createdDiffHours >= 24 && updatedDiffHours < 24 && created.getTime() !== updated.getTime();
+};
 
 export function EnhancedDocSidebar() {
   const [isClient, setIsClient] = useState(false)
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(["getting-started"])
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(["GETTING_STARTED"])
+  const [expandedDocuments, setExpandedDocuments] = useState<string[]>([])
   const [filterText, setFilterText] = useState<string>("")
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const [hasRealData, setHasRealData] = useState(false)
+  
+  // Get documentation data from store
+  const { 
+    documentations, 
+    sections, 
+    fetchDocumentations, 
+    fetchDocumentSections, 
+    setSelectedDocumentation, 
+    setSelectedSection 
+  } = useDocumentationStore()
+  
   const { state } = useSidebar()
   const { theme } = useTheme()
   const { activeSection, setActiveSection, activePath, setActivePath, readSections, viewMode, setCursorVariant } =
@@ -138,60 +237,32 @@ export function EnhancedDocSidebar() {
       if (savedCategories) {
         setExpandedCategories(JSON.parse(savedCategories))
       }
-    } catch (error) {
-      console.error("Failed to restore expanded categories:", error)
-    }
-
-    // Set up keyboard navigation
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!sidebarRef.current || !document.activeElement) return
-
-      // Only handle keyboard navigation when sidebar is focused
-      if (!sidebarRef.current.contains(document.activeElement)) return
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault()
-          navigateVertically(1)
-          break
-        case "ArrowUp":
-          e.preventDefault()
-          navigateVertically(-1)
-          break
-        case "ArrowRight":
-          e.preventDefault()
-          if (document.activeElement.getAttribute("aria-expanded") === "false") {
-            ;(document.activeElement as HTMLElement).click()
-          }
-          break
-        case "ArrowLeft":
-          e.preventDefault()
-          if (document.activeElement.getAttribute("aria-expanded") === "true") {
-            ;(document.activeElement as HTMLElement).click()
-          }
-          break
+      
+      const savedDocuments = localStorage.getItem("doc-expanded-documents")
+      if (savedDocuments) {
+        setExpandedDocuments(JSON.parse(savedDocuments))
       }
+    } catch (error) {
+      console.error("Failed to restore expanded items:", error)
     }
 
-    document.addEventListener("keydown", handleKeyDown)
+    // Fetch documentations on first load
+    fetchDocumentations().catch(error => {
+      console.error("Failed to fetch documentations:", error)
+    })
+  }, [fetchDocumentations]) // Remove expandedCategories from dependencies
 
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown)
+  // Ensure Getting Started is always expanded in a separate effect
+  useEffect(() => {
+    if (!expandedCategories.includes("GETTING_STARTED")) {
+      setExpandedCategories(prev => [...prev, "GETTING_STARTED"])
     }
-  }, [])
+  }, [expandedCategories])
 
-  // Keyboard navigation helper
-  const navigateVertically = (direction: number) => {
-    const focusableElements = Array.from(
-      sidebarRef.current?.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])') || [],
-    ) as HTMLElement[]
-
-    const currentIndex = focusableElements.findIndex((el) => el === document.activeElement)
-    if (currentIndex === -1) return
-
-    const nextIndex = (currentIndex + direction + focusableElements.length) % focusableElements.length
-    focusableElements[nextIndex].focus()
-  }
+  // Check if we have real data whenever documentations change
+  useEffect(() => {
+    setHasRealData(documentations.length > 0)
+  }, [documentations])
 
   // Save expanded categories to local storage
   useEffect(() => {
@@ -204,30 +275,206 @@ export function EnhancedDocSidebar() {
     }
   }, [expandedCategories, isClient])
 
-  // Handle category expansion
+  // Save expanded documents to local storage
+  useEffect(() => {
+    if (isClient) {
+      try {
+        localStorage.setItem("doc-expanded-documents", JSON.stringify(expandedDocuments))
+      } catch (error) {
+        console.error("Failed to save expanded documents:", error)
+      }
+    }
+  }, [expandedDocuments, isClient])
+
+  // Toggle category expansion
   const toggleCategory = (categoryId: string) => {
-    setExpandedCategories((prev) =>
-      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
-    )
+    setExpandedCategories((prev) => {
+      // Don't toggle "getting-started" through normal means
+      if (categoryId === "getting-started") return prev;
+      
+      return prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId];
+    });
   }
 
-  // Handle item selection
-  const handleItemClick = (categoryId: string, itemId: string) => {
+  // Update the toggleDocument function to properly handle section loading
+  const toggleDocument = async (docId: string) => {
+    // Toggle the document expansion state immediately for better UX
+    setExpandedDocuments((prev) => {
+      const isCurrentlyExpanded = prev.includes(docId);
+      return isCurrentlyExpanded ? prev.filter(id => id !== docId) : [...prev, docId];
+    });
+
+    // If we're expanding and don't have sections yet, fetch them
+    if (!expandedDocuments.includes(docId)) {
+      try {
+        await fetchDocumentSections(docId);
+      } catch (error) {
+        console.error("Failed to load sections:", error);
+      }
+    }
+  };
+
+  // Handle document selection
+  const handleDocumentClick = async (doc: DocumentationDTO) => {
+    const docId = doc.id || '';
+    
+    // Toggle document expansion
+    setExpandedDocuments((prev) => 
+      prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
+    );
+
+    try {
+      // Set selected documentation
+      setSelectedDocumentation(doc);
+      
+      // Only fetch sections if not already present
+      if (!doc.sections || doc.sections.length === 0) {
+        await fetchDocumentSections(docId);
+      }
+    } catch (error) {
+      console.error("Error loading document sections:", error);
+    }
+  };
+  
+  // Handle section selection
+  const handleSectionClick = (
+    doc: DocumentationDTO | { id: string; technology: string; title: string },
+    section: DocumentationSectionDTO | { id: string; sectionId: string; title: string }
+  ) => {
+    setSelectedDocumentation(doc as DocumentationDTO)
+    setSelectedSection(section as DocumentationSectionDTO)
+    setActiveSection(section.sectionId || "")
+    const docTech = doc.technology || "OTHER"
+    const docId = doc.id || ""
+    const sectionId = section.sectionId || ""
+    setActivePath([docTech, docId, sectionId])
+  }
+
+  // Handle static item selection
+  const handleStaticItemClick = (categoryId: string, itemId: string) => {
     setActiveSection(itemId)
     setActivePath([categoryId, itemId])
   }
 
-  // Filter categories based on search text
-  const filteredCategories = sidebarData
-    .map((category) => ({
-      ...category,
-      items: category.items.filter((item) => item.label.toLowerCase().includes(filterText.toLowerCase())),
-    }))
-    .filter((category) => category.items.length > 0)
+  const handleCategoryClick = (e: React.MouseEvent, categoryId: string) => {
+    e.preventDefault();
+    
+    // Special handling for "getting-started"
+    if (categoryId === "getting-started") {
+      // Find the chevron element and add a pulse animation
+      const chevron = e.currentTarget.querySelector('[data-chevron="getting-started"]');
+      if (chevron) {
+        chevron.classList.add('pulse-animation');
+        setTimeout(() => {
+          chevron.classList.remove('pulse-animation');
+        }, 300);
+      }
+      return; // Exit without toggling
+    }
+    
+    // Normal toggle behavior for other categories
+    toggleCategory(categoryId);
+  };
+
+  // Only compute display data once we have client-side rendering
+  // This fixes potential infinite rendering loops
+  const getDisplayData = () => {
+    // Prepare display data
+    let result: Array<[string, any[]]> = [];
+
+    // If no real data, use full fallback data
+    if (!hasRealData) {
+      // Use fallback static data grouped by technology type
+      const groupedStatic = fallbackSidebarData.reduce((acc: Record<string, any[]>, category) => {
+        const techType = category.technologyType;
+        if (!acc[techType]) {
+          acc[techType] = [];
+        }
+        acc[techType].push(category);
+        return acc;
+      }, {});
+      
+      result = Object.entries(groupedStatic);
+    } else {
+      // Group documentations by technology type
+      const groupedDocumentations = documentations.reduce((groups: Record<string, DocumentationDTO[]>, doc) => {
+        const techType = doc.technology || "OTHER"
+        if (!groups[techType]) {
+          groups[techType] = []
+        }
+        groups[techType].push(doc)
+        return groups
+      }, {})
+      
+      // Filter documentations and sections based on search text
+      const realDisplayData = Object.entries(groupedDocumentations)
+        .map(([techType, docs]) => {
+          const filteredDocs = docs.filter(doc => {
+            // Keep the document if its title matches the filter
+            const titleMatches = doc.title.toLowerCase().includes(filterText.toLowerCase())
+            
+            // Or if any of its sections match the filter
+            const docSections = Array.isArray(sections) 
+              ? sections.filter(section => section.documentationId === doc.id)
+              : [];
+            
+            const sectionsMatch = docSections.some(section => 
+              section.title?.toLowerCase().includes(filterText.toLowerCase())
+            );
+            
+            return titleMatches || sectionsMatch
+          })
+          
+          return filteredDocs.length > 0 ? [techType, filteredDocs] : null
+        })
+        .filter((group): group is [string, DocumentationDTO[]] => group !== null)
+
+      // Always include Getting Started at the top
+      if (gettingStartedData) {
+        result = [["GETTING_STARTED", [gettingStartedData]], ...realDisplayData];
+      } else {
+        result = realDisplayData;
+      }
+    }
+
+    // Filter displayData based on search text if it's not empty
+    if (filterText) {
+      result = result
+        .map(([techType, items]) => {
+          if (techType === "GETTING_STARTED" && gettingStartedData) {
+            // Special handling for Getting Started
+            const gettingStartedItems = (items as StaticCategory[]).filter(category => {
+              // Check if category label matches
+              if (category.label.toLowerCase().includes(filterText.toLowerCase())) {
+                return true;
+              }
+              
+              // Check if any items match
+              return category.items.some(item => 
+                item.label.toLowerCase().includes(filterText.toLowerCase())
+              );
+            });
+            
+            return gettingStartedItems.length > 0 ? [techType, gettingStartedItems] : null;
+          } else {
+            // Standard filtering for other categories
+            return [techType, items];
+          }
+        })
+        .filter((group): group is [string, any[]] => group !== null);
+    }
+
+    return result;
+  }
 
   if (!isClient) {
     return null
   }
+
+  // Compute display data only when rendering, not during state updates
+  const displayData = getDisplayData();
 
   // Animation variants
   const containerVariants = {
@@ -259,12 +506,37 @@ export function EnhancedDocSidebar() {
     <Sidebar
       ref={sidebarRef}
       className={`border-r border-border overflow-hidden transition-all duration-300 ${
-        theme === "dark" ? "bg-background/80" : "bg-background/90"
-      }`}
+        theme === "dark" ? "bg-background/80" : "bg-background/90 sidebar-light-mode"
+      } sticky top-0 z-30`}
       variant="sidebar"
       collapsible="offcanvas"
     >
-      <SidebarHeader className="border-b border-border">
+      {theme !== "dark" && (
+        <style>
+          {`
+            .sidebar-light-mode .text-muted-foreground {
+              color: #000000 !important;
+            }
+            .sidebar-light-mode span,
+            .sidebar-light-mode div,
+            .sidebar-light-mode p {
+              color: #000000;
+            }
+            
+            .pulse-animation {
+              animation: pulse 0.3s ease-in-out;
+            }
+            
+            @keyframes pulse {
+              0% { transform: scale(1); }
+              50% { transform: scale(1.5); }
+              100% { transform: scale(1); }
+            }
+          `}
+        </style>
+      )}
+
+      <SidebarHeader className="border-b border-border pt-16">
         <div className="flex flex-col space-y-2 p-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -282,19 +554,22 @@ export function EnhancedDocSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <ScrollArea className="h-[calc(100vh-8.5rem)]">
+        <ScrollArea className="h-[calc(100vh-12rem)]">
           <motion.div variants={containerVariants} initial="hidden" animate="visible" className="py-2">
-            {filteredCategories.map((category) => (
+            {displayData.map(([techType, items]) => {
+              // Special handling for Getting Started - always open
+              const isGettingStarted = techType === "GETTING_STARTED";
+              const isOpen = isGettingStarted || expandedCategories.includes(techType);
+              
+              // Get the icon based on technology type
+              const CategoryIcon = getTechnologyIcon(techType);
+              const categoryColor = getTechnologyColor(techType);
+              
+              return (
               <Collapsible
-                key={category.id}
-                open={expandedCategories.includes(category.id)}
-                onOpenChange={(isOpen) => {
-                  if (isOpen) {
-                    setExpandedCategories((prev) => [...prev, category.id])
-                  } else {
-                    setExpandedCategories((prev) => prev.filter((id) => id !== category.id))
-                  }
-                }}
+                  key={techType}
+                  open={isOpen}
+                  onOpenChange={() => toggleCategory(techType)}
                 className="group transition-all duration-200"
               >
                 <SidebarGroup>
@@ -303,17 +578,25 @@ export function EnhancedDocSidebar() {
                       className={cn(
                         "flex w-full items-center justify-between p-2 rounded-md transition-all",
                         "hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/20",
-                        hoveredCategory === category.id && "bg-accent/30",
+                          hoveredCategory === techType && "bg-accent/30",
+                          isGettingStarted && "bg-primary/5" // Highlight Getting Started section
                       )}
                       onMouseEnter={() => {
-                        setHoveredCategory(category.id)
+                          setHoveredCategory(techType)
                         setCursorVariant("button")
                       }}
                       onMouseLeave={() => {
                         setHoveredCategory(null)
                         setCursorVariant("default")
                       }}
-                      aria-expanded={expandedCategories.includes(category.id)}
+                        aria-expanded={isOpen}
+                        data-category={techType}
+                        onClick={(e) => {
+                          if (isGettingStarted) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
                     >
                       <motion.div className="flex items-center gap-2" variants={itemVariants}>
                         <motion.div
@@ -321,17 +604,20 @@ export function EnhancedDocSidebar() {
                           whileTap={{ scale: 0.95 }}
                           className={cn(
                             "flex items-center justify-center w-6 h-6 rounded-md",
-                            activePath[0] === category.id ? "bg-primary/20 text-primary" : "text-muted-foreground",
+                              categoryColor
                           )}
                         >
-                          <category.icon className="h-4 w-4" />
+                            <CategoryIcon className="h-4 w-4" />
                         </motion.div>
-                        <span className="text-sm font-medium">{category.label}</span>
+                          <span className="text-sm font-medium">{techType.replace(/_/g, " ")}</span>
+                          <Badge variant="outline" className="ml-2 text-xs">{Array.isArray(items) ? items.length : 0}</Badge>
                       </motion.div>
                       <motion.div
+                          className={`chevron ${isGettingStarted ? 'getting-started-chevron' : ''}`}
                         animate={{
-                          rotate: expandedCategories.includes(category.id) ? 180 : 0,
-                          scale: hoveredCategory === category.id ? 1.1 : 1,
+                            rotate: isOpen ? 180 : 0,
+                            scale: hoveredCategory === techType ? 1.1 : 1,
+                            opacity: isGettingStarted ? 0.5 : 1,
                         }}
                         transition={{ duration: 0.2 }}
                       >
@@ -340,26 +626,32 @@ export function EnhancedDocSidebar() {
                     </CollapsibleTrigger>
                   </SidebarGroupLabel>
 
-                  <CollapsibleContent>
-                    <AnimatePresence>
-                      {expandedCategories.includes(category.id) && (
+                    {/* Fix for the TypeScript error: use conditional rendering instead of forceMount */}
+                    {isGettingStarted ? (
+                      <div>
+                        <SidebarGroupContent>
+                          <div className="pl-8 pr-2 py-1 text-xs text-muted-foreground">
+                            {techType.replace(/_/g, " ")} documentation
+                          </div>
+                          <SidebarMenu>
+                            {/* Getting Started content */}
+                            {(items as StaticCategory[]).map((category) => (
+                              <SidebarMenuItem key={category.id}>
                         <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3, ease: "easeInOut" }}
-                        >
-                          <SidebarGroupContent>
-                            <div className="pl-8 pr-2 py-1 text-xs text-muted-foreground">{category.description}</div>
-                            <SidebarMenu>
-                              {category.items.map((item) => {
-                                const isActive = activeSection === item.id
-                                const isRead = readSections.includes(item.id)
+                                  whileHover={{ x: 4 }} 
+                                  className="relative flex items-center justify-between w-full pl-8 py-1.5 text-sm rounded-md transition-all font-medium"
+                                >
+                                  {category.label}
+                                </motion.div>
+                                
+                                <ul className="ml-10 mt-2 space-y-1">
+                                  {category.items.map((item: StaticItem) => {
+                                    const isActive = activeSection === item.id;
+                                    const isRead = readSections.includes(item.id);
 
                                 return (
-                                  <SidebarMenuItem key={item.id}>
+                                      <li key={item.id}>
                                     <motion.div whileHover={{ x: 4 }} className="relative">
-                                      {/* Active indicator line */}
                                       {isActive && (
                                         <motion.div
                                           className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-full"
@@ -374,7 +666,7 @@ export function EnhancedDocSidebar() {
                                         href={`#${item.id}`}
                                         ref={isActive ? focusedItemRef : null}
                                         className={cn(
-                                          "flex items-center gap-2 pl-8 py-1.5 text-sm rounded-md transition-all",
+                                              "flex items-center gap-2 pl-2 py-1.5 text-sm rounded-md transition-all",
                                           "focus:outline-none focus:ring-2 focus:ring-primary/20",
                                           isActive
                                             ? "bg-primary/10 text-primary font-medium"
@@ -382,7 +674,7 @@ export function EnhancedDocSidebar() {
                                           hoveredItem === item.id && "bg-accent/20",
                                           isRead && !isActive && "text-muted-foreground/70",
                                         )}
-                                        onClick={() => handleItemClick(category.id, item.id)}
+                                            onClick={() => handleStaticItemClick(category.id, item.id)}
                                         onMouseEnter={() => {
                                           setHoveredItem(item.id)
                                           setCursorVariant("link")
@@ -392,15 +684,11 @@ export function EnhancedDocSidebar() {
                                           setCursorVariant("default")
                                         }}
                                       >
-                                        <span className="relative">
-                                          {item.label}
-
-                                          {/* Status indicators */}
-                                          <span className="flex absolute -right-6 top-0">
+                                            <span>{item.label}</span>
                                             {item.isNew && (
                                               <Badge
                                                 variant="outline"
-                                                className="text-[0.6rem] h-4 px-1 border-green-500 text-green-500 font-medium"
+                                                className="ml-2 text-[0.6rem] h-4 px-1 border-green-500 text-green-500 font-medium"
                                               >
                                                 NEW
                                               </Badge>
@@ -408,17 +696,149 @@ export function EnhancedDocSidebar() {
                                             {item.isUpdated && !item.isNew && (
                                               <Badge
                                                 variant="outline"
-                                                className="text-[0.6rem] h-4 px-1 border-blue-500 text-blue-500 font-medium"
+                                                className="ml-2 text-[0.6rem] h-4 px-1 border-blue-500 text-blue-500 font-medium"
                                               >
                                                 UPDATED
                                               </Badge>
                                             )}
-                                          </span>
-                                        </span>
                                       </a>
                                     </motion.div>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
                                   </SidebarMenuItem>
-                                )
+                            ))}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </div>
+                    ) : (
+                      <CollapsibleContent>
+                        <AnimatePresence>
+                          {isOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.3, ease: "easeInOut" }}
+                            >
+                              <SidebarGroupContent>
+                                <div className="pl-8 pr-2 py-1 text-xs text-muted-foreground">
+                                  {techType.replace(/_/g, " ")} documentation
+                                </div>
+                                <SidebarMenu>
+                                  {/* Render real documentation items */}
+                                  {(items as DocumentationDTO[]).map((doc) => {
+                                    const docId = doc.id || '';
+                                    const isExpanded = expandedDocuments.includes(docId);
+                                    const isNew = isNewDocument(doc.createdAt);
+
+                                    return (
+                                      <SidebarMenuItem key={docId}>
+                                        <Collapsible
+                                          open={isExpanded}
+                                          onOpenChange={() => toggleDocument(docId)}
+                                        >
+                                          <CollapsibleTrigger asChild>
+                                            <div 
+                                              className={cn(
+                                                "flex items-center justify-between px-2 py-1.5 text-sm rounded-md transition-colors",
+                                                "hover:bg-accent/50 cursor-pointer",
+                                                isExpanded && "bg-accent/30"
+                                              )}
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <motion.div
+                                                  whileHover={{ scale: 1.1 }}
+                                                  whileTap={{ scale: 0.95 }}
+                                                  className={cn(
+                                                    "flex items-center justify-center w-6 h-6 rounded-md",
+                                                    getTechnologyColor(doc.technology)
+                                                  )}
+                                                >
+                                                  {React.createElement(getTechnologyIcon(doc.technology))}
+                                                </motion.div>
+                                                <span className="font-medium">{doc.title}</span>
+                                                {isNew && (
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="ml-2 text-[0.6rem] h-4 px-1 border-green-500 text-green-500 font-medium"
+                                                  >
+                                                    NEW
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                              <ChevronDown 
+                                                className={cn(
+                                                  "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                                                  isExpanded && "rotate-180"
+                                                )}
+                                              />
+                                            </div>
+                                          </CollapsibleTrigger>
+
+                                          <CollapsibleContent>
+                                            <AnimatePresence>
+                                              {isExpanded && (
+                                                <motion.div
+                                                  initial={{ opacity: 0, height: 0 }}
+                                                  animate={{ opacity: 1, height: "auto" }}
+                                                  exit={{ opacity: 0, height: 0 }}
+                                                  transition={{ duration: 0.2 }}
+                                                  className="pl-4 mt-1 space-y-1"
+                                                >
+                                                  {doc.sections?.map((section) => {
+                                                    const isSectionNew = isNewSection(section);
+                                                    const isSectionUpdated = isRecentlyUpdatedSection(section);
+                                                    
+                                                    return (
+                                                      <motion.div
+                                                        key={section.id}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        className="relative"
+                                                      >
+                                                        <a
+                                                          href={`#${section.sectionId}`}
+                                                          className={cn(
+                                                            "flex items-center justify-between px-2 py-1.5 text-sm rounded-md transition-colors",
+                                                            activeSection === section.sectionId 
+                                                              ? "bg-accent/50 text-accent-foreground font-medium"
+                                                              : "text-muted-foreground hover:bg-accent/30 hover:text-accent-foreground"
+                                                          )}
+                                                          onClick={(e) => {
+                                                            e.preventDefault();
+                                                            handleSectionClick(doc, section);
+                                                          }}
+                                                        >
+                                                          <span className="truncate">{section.title}</span>
+                                                          {isSectionNew && (
+                                                            <Badge
+                                                              variant="outline"
+                                                              className="ml-2 text-[0.6rem] h-4 px-1 border-green-500 text-green-500 font-medium"
+                                                            >
+                                                              NEW
+                                                            </Badge>
+                                                          )}
+                                                          {!isSectionNew && isSectionUpdated && (
+                                                            <Badge
+                                                              variant="outline"
+                                                              className="ml-2 text-[0.6rem] h-4 px-1 border-blue-500 text-blue-500 font-medium"
+                                                            >
+                                                              UPDATED
+                                                            </Badge>
+                                                          )}
+                                                        </a>
+                                                      </motion.div>
+                                                    );
+                                                  })}
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
+                                          </CollapsibleContent>
+                                        </Collapsible>
+                                      </SidebarMenuItem>
+                                    );
                               })}
                             </SidebarMenu>
                           </SidebarGroupContent>
@@ -426,9 +846,11 @@ export function EnhancedDocSidebar() {
                       )}
                     </AnimatePresence>
                   </CollapsibleContent>
+                    )}
                 </SidebarGroup>
               </Collapsible>
-            ))}
+              )
+            })}
           </motion.div>
         </ScrollArea>
       </SidebarContent>

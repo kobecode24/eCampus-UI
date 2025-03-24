@@ -26,6 +26,7 @@ import { EnhancedDocContent } from "./enhanced-doc-content"
 import { EnhancedDocRightPanel } from "./enhanced-doc-right-panel"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import {useDocumentationStore} from "@/stores/useDocumentationStore";
 
 // Documentation context for sharing state between components
 type DocContextType = {
@@ -42,6 +43,7 @@ type DocContextType = {
   viewMode: "default" | "focused" | "presentation"
   setViewMode: (mode: "default" | "focused" | "presentation") => void
   scrollProgress: number
+  setScrollProgress: (progress: number) => void
   isSearchOpen: boolean
   setIsSearchOpen: (isOpen: boolean) => void
   searchQuery: string
@@ -49,7 +51,8 @@ type DocContextType = {
   cursorVariant: "default" | "link" | "text" | "button" | "copy"
   setCursorVariant: (variant: "default" | "link" | "text" | "button" | "copy") => void
   useStandardScrolling: boolean
-  setUseStandardScrolling: (useStandard: boolean) => void
+  readingProgress: number
+  setReadingProgress: (progress: number) => void
 }
 
 const DocContext = createContext<DocContextType | undefined>(undefined)
@@ -61,6 +64,34 @@ export const useDocContext = () => {
   }
   return context
 }
+
+// Near the top of the file, update the CSS to make all text black in light mode
+const lightModeTextStyle = `
+  .documentation-container.light-mode {
+    --text-primary: #000000;
+    --text-secondary: #000000;
+    --text-muted: #000000;
+    color: var(--text-primary);
+  }
+  
+  .documentation-container.light-mode .text-foreground {
+    color: var(--text-primary) !important;
+  }
+  
+  .documentation-container.light-mode .text-muted-foreground {
+    color: var(--text-primary) !important;
+  }
+
+  /* Force black text for all elements in light mode */
+  .documentation-container.light-mode p,
+  .documentation-container.light-mode span,
+  .documentation-container.light-mode div,
+  .documentation-container.light-mode a,
+  .documentation-container.light-mode button,
+  .documentation-container.light-mode label {
+    color: #000000;
+  }
+`;
 
 export function EnhancedDocumentationLayout() {
   const [isClient, setIsClient] = useState(false)
@@ -78,7 +109,8 @@ export function EnhancedDocumentationLayout() {
   const [cursorVariant, setCursorVariant] = useState<"default" | "link" | "text" | "button" | "copy">("default")
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 })
   const [showCustomCursor, setShowCustomCursor] = useState(false)
-  const [useStandardScrolling, setUseStandardScrolling] = useState(false)
+  const useStandardScrolling = true
+  const [readingProgress, setReadingProgress] = useState(0)
 
   const mainRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
@@ -218,6 +250,21 @@ export function EnhancedDocumentationLayout() {
     }
   }, [isMobile])
 
+  // Add the style to the document head when the component mounts
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = lightModeTextStyle;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      // Clean up when the component unmounts
+      document.head.removeChild(styleElement);
+    }
+  }, []);
+
+  // At the top of your component, get the selected items from the store
+  const { selectedDocumentation, selectedSection } = useDocumentationStore();
+
   if (!isClient) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -286,6 +333,7 @@ export function EnhancedDocumentationLayout() {
         viewMode,
         setViewMode,
         scrollProgress,
+        setScrollProgress,
         isSearchOpen,
         setIsSearchOpen,
         searchQuery,
@@ -293,11 +341,12 @@ export function EnhancedDocumentationLayout() {
         cursorVariant,
         setCursorVariant,
         useStandardScrolling,
-        setUseStandardScrolling,
+        readingProgress,
+        setReadingProgress,
       }}
     >
       <div
-        className={`documentation-container min-h-screen ${viewMode === "focused" ? "focused-mode" : ""} ${useStandardScrolling ? "standard-scroll" : ""}`}
+        className={`documentation-container min-h-screen ${viewMode === "focused" ? "focused-mode" : ""} standard-scroll ${theme === "dark" ? "" : "light-mode"}`}
       >
         {/* Custom cursor */}
         {showCustomCursor && !isMobile && (
@@ -338,290 +387,244 @@ export function EnhancedDocumentationLayout() {
         {/* Navigation bar */}
         <header
           className={cn(
-            "sticky top-0 z-30 w-full backdrop-blur-md border-b border-border",
-            theme === "dark" ? "bg-background/80 text-foreground" : "bg-background/80 text-foreground",
+            "sticky top-0 z-20 w-full backdrop-blur-md border-b border-border",
+            theme === "dark" 
+              ? "bg-background/80 text-foreground" 
+              : "bg-background/80 text-black",
             viewMode === "focused" && "opacity-0 pointer-events-none",
           )}
         >
-          <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-            <motion.div
-              className="flex items-center space-x-4"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              onMouseEnter={() => setCursorVariant("link")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onMouseEnter={() => setCursorVariant("button")}
-                onMouseLeave={() => setCursorVariant("link")}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <a
-                href="/dev-forum"
-                className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-                onMouseEnter={() => setCursorVariant("link")}
-                onMouseLeave={() => setCursorVariant("default")}
-              >
-                <BookOpen className="h-6 w-6 text-primary" />
-                <span className="font-bold text-xl hidden md:inline-block">DevDocs</span>
-              </a>
-            </motion.div>
-
-            {/* Breadcrumb navigation */}
-            <motion.div
-              className="hidden md:flex items-center space-x-2 absolute left-1/2 transform -translate-x-1/2"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-            >
-              <a
-                href="/dev-forum"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onMouseEnter={() => setCursorVariant("link")}
-                onMouseLeave={() => setCursorVariant("default")}
-              >
-                Home
-              </a>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              <a
-                href="/dev-forum/documentation"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onMouseEnter={() => setCursorVariant("link")}
-                onMouseLeave={() => setCursorVariant("default")}
-              >
-                Documentation
-              </a>
-              {activePath.length > 0 && (
-                <>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{activePath[activePath.length - 1]}</span>
-                </>
-              )}
-            </motion.div>
-
-            {/* Search and actions */}
-            <motion.div
-              className="flex items-center space-x-2"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                onMouseEnter={() => setCursorVariant("button")}
-                onMouseLeave={() => setCursorVariant("default")}
-              >
-                <Search className="h-5 w-5" />
-              </Button>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleTheme}
-                      className="transition-transform hover:scale-110 active:scale-95"
-                      onMouseEnter={() => setCursorVariant("button")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    >
-                      {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Switch to {theme === "dark" ? "light" : "dark"} mode</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setUseStandardScrolling(!useStandardScrolling)}
-                      className="transition-transform hover:scale-110 active:scale-95"
-                      onMouseEnter={() => setCursorVariant("button")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    >
-                      {useStandardScrolling ? <Zap className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>{useStandardScrolling ? "Enable enhanced scrolling" : "Use standard scrolling"}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
-                      onMouseEnter={() => setCursorVariant("button")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    >
-                      <BookMarked className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Your bookmarks</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
-                      onMouseEnter={() => setCursorVariant("button")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    >
-                      <Clock className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Reading history</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
-                      onClick={() => setViewMode(viewMode === "focused" ? "default" : "focused")}
-                      onMouseEnter={() => setCursorVariant("button")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    >
-                      {viewMode === "focused" ? <Settings className="h-5 w-5" /> : <Lightbulb className="h-5 w-5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>{viewMode === "focused" ? "Exit focused mode" : "Enter focused mode"}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <Button
-                className="hidden md:flex gap-2 items-center transition-all hover:shadow-md active:scale-95"
-                onMouseEnter={() => setCursorVariant("button")}
-                onMouseLeave={() => setCursorVariant("default")}
-              >
-                <Star className="h-4 w-4" />
-                <span>Contribute</span>
-              </Button>
-            </motion.div>
-          </div>
-
-          {/* Reading progress indicator */}
-          <motion.div
-            className="h-1 bg-primary/80"
-            style={{ width: `${scrollProgress * 100}%` }}
-            initial={{ width: "0%" }}
-            transition={{ ease: "easeOut" }}
-          />
-
-          {/* Search overlay */}
-          <AnimatePresence>
-            {isSearchOpen && (
+          <div className="container mx-auto px-4 h-16">
+            {/* Change to grid layout with three columns */}
+            <div className="grid grid-cols-3 h-full items-center">
+              {/* Left section - Logo */}
               <motion.div
-                className="absolute top-full left-0 right-0 bg-background/95 backdrop-blur-md border-b border-border z-20"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
+                className="flex items-center space-x-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
+                onMouseEnter={() => setCursorVariant("link")}
+                onMouseLeave={() => setCursorVariant("default")}
               >
-                <div className="container mx-auto p-4">
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="Search documentation..."
-                      className="w-full pl-10 pr-10 py-2 rounded-full bg-background border-input focus:ring-2 focus:ring-primary/20"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      autoFocus
-                      onMouseEnter={() => setCursorVariant("text")}
-                      onMouseLeave={() => setCursorVariant("default")}
-                    />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onMouseEnter={() => setCursorVariant("button")}
+                  onMouseLeave={() => setCursorVariant("link")}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                <a
+                  href="/dev-forum"
+                  className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+                  onMouseEnter={() => setCursorVariant("link")}
+                  onMouseLeave={() => setCursorVariant("default")}
+                >
+                  <BookOpen className="h-6 w-6 text-primary" />
+                  <span className="font-bold text-xl hidden md:inline-block">DevDocs</span>
+                </a>
+              </motion.div>
+
+              {/* Center section - Breadcrumb */}
+              <motion.div
+                className="hidden md:flex items-center justify-center space-x-2 max-w-2xl overflow-hidden"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+              >
+                <a href="/dev-forum" className={cn("text-sm transition-colors shrink-0",
+                  theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
+                )}>
+                  Home
+                </a>
+                <ChevronRight className="h-4 w-4 shrink-0" />
+                <a href="/dev-forum/documentation" className={cn("text-sm transition-colors shrink-0",
+                  theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
+                )}>
+                  Documentation
+                </a>
+
+                {/* Selected documentation and section with tooltips */}
+                {selectedDocumentation && (
+                  <>
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium truncate max-w-[150px] cursor-help">
+                            {selectedDocumentation.technology?.replace(/_/g, " ")}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-[300px]">
+                          <p>{selectedDocumentation.technology?.replace(/_/g, " ")}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium truncate max-w-[200px] cursor-help">
+                            {selectedDocumentation.title}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-[300px]">
+                          <p>{selectedDocumentation.title}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                )}
+
+                {selectedSection && (
+                  <>
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium truncate max-w-[200px] cursor-help">
+                            {selectedSection.title}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-[300px]">
+                          <p>{selectedSection.title}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </>
+                )}
+              </motion.div>
+
+              {/* Right section - Actions */}
+              <motion.div
+                className="flex items-center justify-end space-x-2"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
+              >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  onMouseEnter={() => setCursorVariant("button")}
+                  onMouseLeave={() => setCursorVariant("default")}
+                >
+                  <Search className="h-5 w-5" />
+                </Button>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6"
-                        onClick={() => setSearchQuery("")}
+                        onClick={toggleTheme}
+                        className="transition-transform hover:scale-110 active:scale-95"
                         onMouseEnter={() => setCursorVariant("button")}
                         onMouseLeave={() => setCursorVariant("default")}
                       >
-                        <X className="h-3 w-3" />
+                        {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                       </Button>
-                    )}
-                  </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Switch to {theme === "dark" ? "light" : "dark"} mode</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
 
-                  {/* Quick search results */}
-                  {searchQuery && (
-                    <div className="mt-4 space-y-2">
-                      <h3 className="text-sm font-medium">Quick Results</h3>
-                      <ul className="space-y-1">
-                        <li>
-                          <a
-                            href="#introduction"
-                            className="block p-2 rounded-md hover:bg-accent/50 transition-colors"
-                            onClick={() => setIsSearchOpen(false)}
-                            onMouseEnter={() => setCursorVariant("link")}
-                            onMouseLeave={() => setCursorVariant("default")}
-                          >
-                            <div className="font-medium">Introduction</div>
-                            <div className="text-sm text-muted-foreground">Getting started with our platform</div>
-                          </a>
-                        </li>
-                        <li>
-                          <a
-                            href="#installation"
-                            className="block p-2 rounded-md hover:bg-accent/50 transition-colors"
-                            onClick={() => setIsSearchOpen(false)}
-                            onMouseEnter={() => setCursorVariant("link")}
-                            onMouseLeave={() => setCursorVariant("default")}
-                          >
-                            <div className="font-medium">Installation</div>
-                            <div className="text-sm text-muted-foreground">How to install and set up the platform</div>
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
+                        onMouseEnter={() => setCursorVariant("button")}
+                        onMouseLeave={() => setCursorVariant("default")}
+                      >
+                        <BookMarked className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Your bookmarks</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
+                        onMouseEnter={() => setCursorVariant("button")}
+                        onMouseLeave={() => setCursorVariant("default")}
+                      >
+                        <Clock className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Reading history</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hidden md:flex transition-transform hover:scale-110 active:scale-95"
+                        onClick={() => setViewMode(viewMode === "focused" ? "default" : "focused")}
+                        onMouseEnter={() => setCursorVariant("button")}
+                        onMouseLeave={() => setCursorVariant("default")}
+                      >
+                        {viewMode === "focused" ? <Settings className="h-5 w-5" /> : <Lightbulb className="h-5 w-5" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>{viewMode === "focused" ? "Exit focused mode" : "Enter focused mode"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <Button
+                  className="hidden md:flex gap-2 items-center transition-all hover:shadow-md active:scale-95"
+                  onMouseEnter={() => setCursorVariant("button")}
+                  onMouseLeave={() => setCursorVariant("default")}
+                >
+                  <Star className="h-4 w-4" />
+                  <span>Contribute</span>
+                </Button>
               </motion.div>
-            )}
-          </AnimatePresence>
+            </div>
+          </div>
+          
+          {/* Reading progress bar - sticks with header */}
+          <div className="w-full h-1 bg-muted">
+            <div 
+              className="h-full bg-primary transition-all duration-100"
+              style={{ width: `${readingProgress * 100}%` }}
+            />
+          </div>
         </header>
 
         {/* Main content */}
         <div className="container mx-auto px-0 flex flex-col md:flex-row">
-          <SidebarProvider>
+          <SidebarProvider
+            className={theme === "dark" ? "" : "text-black"}
+          >
             <EnhancedDocSidebar />
             <main
               ref={mainRef}
               className={cn(
                 "flex-1 min-h-[calc(100vh-4rem)] pt-6 pb-20 md:px-8 transition-all duration-500",
+                theme === "dark" ? "text-foreground" : "text-black",
                 viewMode === "focused" && "md:px-16 lg:px-32",
               )}
             >

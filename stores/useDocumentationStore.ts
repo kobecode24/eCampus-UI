@@ -127,31 +127,24 @@ export const useDocumentationStore = create<DocumentationState>()(
         },
         
         // Fetch sections for a documentation
-        fetchDocumentSections: async (docId) => {
-          set({ loading: true, error: null })
+        fetchDocumentSections: async (docId: string) => {
           try {
-            const response = await documentationService.getDocumentation(docId)
+            const response = await documentationService.getDocumentation(docId);
             if (response.data.success) {
-              const sections = response.data.data
-              set({ 
-                sections,
-                loading: false
-              })
-              return sections
-            } else {
-              set({ 
-                error: response.data.message || 'Failed to fetch sections',
-                loading: false
-              })
-              throw new Error(response.data.message || 'Failed to fetch sections')
+              const doc = response.data.data;
+              
+              // Update the documentation in the store with its sections
+              set((state) => ({
+                documentations: state.documentations.map((d) =>
+                  d.id === docId ? { ...d, sections: doc.sections } : d
+                ),
+              }));
+              
+              return doc.sections;
             }
-          } catch (error: any) {
-            console.error("Error fetching sections:", error)
-            set({ 
-              error: error.message || 'Failed to fetch sections',
-              loading: false
-            })
-            throw error
+          } catch (error) {
+            console.error("Error fetching sections:", error);
+            throw error;
           }
         },
         
