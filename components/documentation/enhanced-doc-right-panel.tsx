@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   ChevronDown,
@@ -29,7 +29,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTheme } from "@/contexts/theme-context"
 import { useDocContext } from "./enhanced-documentation-layout"
+import { useDocumentationStore } from "@/stores/useDocumentationStore"
 import { cn } from "@/lib/utils"
+import { documentationService } from "@/services/api"
 
 export function EnhancedDocRightPanel() {
   const { theme } = useTheme()
@@ -42,14 +44,18 @@ export function EnhancedDocRightPanel() {
     toggleSectionExpansion,
     viewMode,
     setCursorVariant,
+    readingProgress,
+    setReadingProgress,
   } = useDocContext()
-
+  const { selectedDocumentation, selectedSection } = useDocumentationStore()
   const [isClient, setIsClient] = useState(false)
   const [expandedPanels, setExpandedPanels] = useState<string[]>(["tableOfContents", "relatedDocs"])
   const [feedbackGiven, setFeedbackGiven] = useState<"helpful" | "unhelpful" | null>(null)
   const [feedbackComment, setFeedbackComment] = useState<string>("")
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [searchFilter, setSearchFilter] = useState<string>("")
+  const [readingTime, setReadingTime] = useState(0)
+  const progressRef = useRef<number>(0)
 
   // Initialize client-side state
   useEffect(() => {
@@ -95,6 +101,69 @@ export function EnhancedDocRightPanel() {
 
     return sections.filter((section) => section.label.toLowerCase().includes(searchFilter.toLowerCase()))
   }
+
+  // Fetch the reading time when documentation changes
+  useEffect(() => {
+    if (selectedDocumentation?.id) {
+      documentationService.getDocumentationReadingTime(selectedDocumentation.id)
+        .then(response => {
+          if (response.data && response.data.data) {
+            setReadingTime(response.data.data.readingTimeMinutes || 1)
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching reading time:", error)
+          setReadingTime(5) // Default to 5 minutes if fetch fails
+        })
+    }
+  }, [selectedDocumentation?.id])
+
+  // Calculate and update reading progress on scroll
+  useEffect(() => {
+    const calculateReadingProgress = () => {
+      // Get the content element - make sure to target the right container
+      const contentElement = document.querySelector('.documentation-content') || document.getElementById('contentRef')
+      if (!contentElement) return
+      
+      const windowHeight = window.innerHeight
+      const docHeight = contentElement.scrollHeight
+      const scrollY = window.scrollY || document.documentElement.scrollTop
+      const totalScrollable = docHeight - windowHeight
+      
+      // Calculate progress percentage (0-100)
+      let progress = totalScrollable > 0 ? (scrollY / totalScrollable) * 100 : 0
+      
+      // Make sure progress is within bounds
+      progress = Math.min(100, Math.max(0, progress))
+      
+      // Round to nearest integer
+      progress = Math.round(progress)
+      
+      // Only update if progress has changed
+      if (progress !== progressRef.current) {
+        progressRef.current = progress
+        setReadingProgress(progress / 100) // Convert to 0-1 scale for context
+        
+        // Debug info
+        console.log(`Scroll progress updated: ${progress}%, docHeight: ${docHeight}, windowHeight: ${windowHeight}, scrollY: ${scrollY}`)
+      }
+    }
+    
+    // Initial calculation
+    setTimeout(calculateReadingProgress, 500) // Small delay to ensure content is rendered
+    
+    // Add scroll listener
+    window.addEventListener('scroll', calculateReadingProgress, { passive: true })
+    
+    // Add resize listener (recalculate on window resize)
+    window.addEventListener('resize', calculateReadingProgress, { passive: true })
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('scroll', calculateReadingProgress)
+      window.removeEventListener('resize', calculateReadingProgress)
+    }
+  }, [setReadingProgress, selectedDocumentation?.id])
 
   if (!isClient) {
     return null
@@ -159,6 +228,34 @@ export function EnhancedDocRightPanel() {
       height: 0,
       transition: { duration: 0.2, ease: "easeInOut" },
     },
+  }
+
+  // Render the reading progress section with the current value
+  const renderReadingProgress = () => {
+    // Convert the reading progress to percentage (0-100)
+    const progressPercentage = Math.round(readingProgress * 100)
+    
+    return (
+      <div className="space-y-2">
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <Clock className="h-4 w-4 text-primary" />
+          READING PROGRESS
+        </h3>
+        <div className="h-2 bg-accent/20 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-primary"
+            style={{ width: `${progressPercentage}%` }}
+            initial={{ width: "0%" }}
+            animate={{ width: `${progressPercentage}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{readingTime > 0 ? `${readingTime} min read` : 'Quick read'}</span>
+          <span>{progressPercentage}% {progressPercentage === 100 ? 'Completed' : 'In progress'}</span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -244,26 +341,8 @@ export function EnhancedDocRightPanel() {
             </AnimatePresence>
           </Collapsible>
 
-          {/* Progress indicator */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-sm flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" />
-              READING PROGRESS
-            </h3>
-            <div className="h-2 bg-accent/20 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-primary"
-                style={{ width: `${scrollProgress * 100}%` }}
-                initial={{ width: "0%" }}
-                animate={{ width: `${scrollProgress * 100}%` }}
-                transition={{ type: "spring", bounce: 0.2 }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{Math.round(scrollProgress * 100)}% complete</span>
-              <span>{Math.round((1 - scrollProgress) * 5)} min left</span>
-            </div>
-          </div>
+          {/* Reading progress */}
+          {renderReadingProgress()}
 
           <Separator />
 

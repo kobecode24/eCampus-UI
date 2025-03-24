@@ -36,7 +36,8 @@ import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
-import CodeBlockExtension from "@tiptap/extension-code-block"
+import CodeBlock from "@tiptap/extension-code-block"
+import { EnhancedEditorStyles } from "../moderator/enhanced-editor-styles"
 
 // Sample code for demo purposes
 const sampleCode = `import { useState } from 'react';
@@ -75,20 +76,21 @@ const diagramData = {
   ],
 }
 
-// Create a component for rendering content with TipTap
-function ContentRenderer({ content }: { content: string }) {
+// Create a read-only version of the TipTap editor for displaying content
+function ReadOnlyTipTapContent({ content }: { content: string }) {
   const [isMounted, setIsMounted] = useState(false)
   
-  // Create a read-only TipTap editor for rendering content
+  // Create a read-only editor instance with the same extensions as your edit mode
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // Disable CodeBlock to prevent conflicts
+        codeBlock: false,
+      }),
       Link.configure({
         openOnClick: true,
         HTMLAttributes: {
           class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
-          target: "_blank",
-          rel: "noopener noreferrer",
         },
       }),
       Image.configure({
@@ -96,15 +98,17 @@ function ContentRenderer({ content }: { content: string }) {
           class: "rounded-md max-w-full",
         },
       }),
-      CodeBlockExtension.configure({
+      CodeBlock.configure({
         HTMLAttributes: {
-          class: "bg-gray-900 text-gray-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
+          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
         },
       }),
     ],
     content,
-    editable: false,
-  })
+    editable: false, // This makes it read-only
+    // Fix SSR issues
+    immediatelyRender: false,
+  }, [])
   
   // Handle client-side rendering
   useEffect(() => {
@@ -122,15 +126,135 @@ function ContentRenderer({ content }: { content: string }) {
     return <div className="h-6 w-full animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
   }
   
-  return editor ? (
-    <EditorContent editor={editor} className="prose max-w-none" />
-  ) : (
-    <div className="h-6 w-full animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+  // ENHANCED custom styles with stronger overrides to prevent background flashes
+  const customStyles = `
+    <style>
+      /* Force dark theme everywhere in the editor */
+      .enhanced-editor, 
+      .enhanced-editor *,
+      .ProseMirror,
+      .ProseMirror *,
+      .glass-panel,
+      .glass-panel * {
+        transition: none !important;
+        color-scheme: dark !important;
+        background-color: transparent !important;
+      }
+      
+      /* Ensure background never changes on any state */
+      .ProseMirror,
+      .ProseMirror:hover,
+      .ProseMirror:focus,
+      .ProseMirror:active,
+      .ProseMirror::selection,
+      .ProseMirror *:hover,
+      .ProseMirror *:focus,
+      .ProseMirror *:active {
+        background-color: transparent !important;
+        cursor: default !important;
+      }
+      
+      /* Force the glass panel to maintain a dark transparent background */
+      .glass-panel {
+        background-color: rgba(15, 23, 42, 0.3) !important;
+        backdrop-filter: blur(4px) !important;
+        box-shadow: none !important;
+      }
+      
+      .glass-panel:hover {
+        background-color: rgba(15, 23, 42, 0.3) !important;
+      }
+      
+      /* Fix code blocks to maintain their styling */
+      pre {
+        background: rgb(30 27 75) !important;
+      }
+      
+      /* Force light text color for proper contrast */
+      .prose {
+        color: #f8fafc !important;
+        max-width: none !important;
+      }
+      
+      /* Additional fixes for specific elements */
+      h1, h2, h3, h4, h5, h6 {
+        color: #f1f5f9 !important;
+      }
+      
+      p, li, blockquote {
+        color: #e2e8f0 !important;
+      }
+      
+      /* Prevent any selection styling */
+      ::selection {
+        background-color: rgba(79, 70, 229, 0.2) !important;
+      }
+    </style>
+  `
+  
+  // Render the TipTap editor in read-only mode with enhanced custom styles
+  return (
+    <div className="enhanced-editor read-only-editor dark">
+      <EnhancedEditorStyles />
+      <div dangerouslySetInnerHTML={{ __html: customStyles }} />
+      <div 
+        className="glass-panel rounded-md overflow-hidden" 
+        style={{ 
+          background: 'rgba(15, 23, 42, 0.3)',
+          boxShadow: 'none'
+        }}
+      >
+        {editor ? (
+          <EditorContent 
+            editor={editor} 
+            className="prose prose-invert max-w-none p-4"
+          />
+        ) : (
+          <div className="flex items-center justify-center p-4">
+            <div className="w-6 h-6 border-t-2 border-indigo-500 rounded-full animate-spin mr-2"></div>
+            <span>Loading content...</span>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
+// Implement a lighter-weight fallback for when TipTap has issues
+function FallbackHtmlContent({ content }: { content: string }) {
+  return (
+    <div className="glass-panel rounded-md overflow-hidden prose prose-invert max-w-none p-4"
+         style={{ background: 'rgba(15, 23, 42, 0.3)' }}>
+      <div dangerouslySetInnerHTML={{ __html: content }} />
+    </div>
+  );
+}
+
+// Conditional rendering component that tries TipTap first, falls back to simpler rendering
+function ContentDisplay({ content }: { content: string }) {
+  const [useFallback, setUseFallback] = useState(false);
+  
+  useEffect(() => {
+    // If we see too many TipTap errors, switch to fallback
+    const handleError = (event: ErrorEvent) => {
+      if (event.message.includes('Tiptap Error')) {
+        setUseFallback(true);
+      }
+    };
+    
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+  
+  if (useFallback) {
+    return <FallbackHtmlContent content={content} />;
+  }
+  
+  return <ReadOnlyTipTapContent content={content} />;
+}
+
 export function EnhancedDocContent() {
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const {
     activeSection,
     setActiveSection,
@@ -180,34 +304,6 @@ export function EnhancedDocContent() {
 
   // Add these new states
   const [isMounted, setIsMounted] = useState(false)
-  const [contentToDisplay, setContentToDisplay] = useState("")
-
-  // Initialize the TipTap editor
-  const contentViewer = useEditor({
-    extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: true,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
-          target: "_blank",
-          rel: "noopener noreferrer",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-md max-w-full",
-        },
-      }),
-      CodeBlockExtension.configure({
-        HTMLAttributes: {
-          class: "bg-gray-900 text-gray-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
-        },
-      }),
-    ],
-    content: contentToDisplay,
-    editable: false,
-  })
 
   // Update reading time when documentation changes
   useEffect(() => {
@@ -221,24 +317,25 @@ export function EnhancedDocContent() {
     }
   }, [selectedDocumentation?.id]);
 
-  // Update content scroll tracking
+  // Set dark theme as default for documentation on initial load
   useEffect(() => {
-    if (!contentRef.current) return;
-
-    const updateReadingProgress = () => {
-      const scrollTop = window.scrollY;
-      const scrollHeight = contentRef.current!.scrollHeight;
-      const clientHeight = window.innerHeight;
-
-      const progress = scrollTop / (scrollHeight - clientHeight);
-      setReadingProgress(Math.min(Math.max(progress, 0), 1));
-    };
-
-    window.addEventListener("scroll", updateReadingProgress);
-    updateReadingProgress();
-
-    return () => window.removeEventListener("scroll", updateReadingProgress);
-  }, [selectedDocumentation]);
+    // Check if theme is stored in localStorage
+    const storedTheme = localStorage.getItem('doctech-theme')
+    
+    // Only set to dark if no theme has been set yet
+    if (!storedTheme) {
+      localStorage.setItem('doctech-theme', 'dark')
+      
+      // If setTheme function is available in the context, use it
+      if (setTheme) {
+        setTheme('dark')
+      }
+      
+      // Add dark class to document root for immediate effect
+      document.documentElement.classList.add('dark')
+      document.documentElement.classList.remove('light')
+    }
+  }, [setTheme])
 
   // Initialize client-side state
   useEffect(() => {
@@ -767,29 +864,6 @@ export function EnhancedDocContent() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
-  
-  // Update the content to display when section or documentation changes
-  useEffect(() => {
-    if (selectedSection && selectedSection.content) {
-      setContentToDisplay(selectedSection.content)
-    } else if (selectedDocumentation && selectedDocumentation.content) {
-      setContentToDisplay(selectedDocumentation.content)
-    } else {
-      setContentToDisplay("")
-    }
-  }, [selectedSection, selectedDocumentation])
-  
-  // Update the editor content when contentToDisplay changes
-  useEffect(() => {
-    if (contentViewer && contentToDisplay) {
-      contentViewer.commands.setContent(contentToDisplay)
-    }
-  }, [contentViewer, contentToDisplay])
-
-  // Client-side rendering
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
 
   if (!isClient) {
     return <div className="h-96 animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
@@ -805,7 +879,7 @@ export function EnhancedDocContent() {
   }
 
   return (
-    <div ref={contentRef} className="max-w-3xl mx-auto">
+    <div ref={contentRef} className="max-w-3xl mx-auto documentation-content">
       {/* Title and metadata */}
       <motion.div className="mb-8 pb-4" style={{ y: titleY }}>
         <div className="flex items-center justify-between">
@@ -825,8 +899,8 @@ export function EnhancedDocContent() {
 
         {/* Main content with TipTap renderer */}
         <motion.div className="mt-4" style={{ opacity: subtitleOpacity }}>
-          {contentViewer && (
-            <EditorContent editor={contentViewer} className="prose max-w-none" />
+          {selectedDocumentation?.content && (
+            <ReadOnlyTipTapContent content={selectedDocumentation.content} />
           )}
         </motion.div>
 
@@ -835,10 +909,12 @@ export function EnhancedDocContent() {
           <div className="h-2 flex-1 bg-accent/20 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-primary"
-              style={{ width: `${readingProgress}%` }}
+              style={{ width: `${Math.round(readingProgress * 100)}%` }}
             ></motion.div>
           </div>
-          <span className="text-xs text-muted-foreground">{readingProgress}%</span>
+          <span className="text-xs text-muted-foreground">
+            {Math.round(readingProgress * 100)}%
+          </span>
         </div>
       </motion.div>
 
@@ -850,8 +926,8 @@ export function EnhancedDocContent() {
           title={section.title} 
           level={2}
         >
-          {/* Use the ContentRenderer for section content */}
-          <ContentRenderer content={section.content} />
+          {/* Use ContentDisplay which handles errors gracefully */}
+          <ContentDisplay content={section.content} />
         </Section>
       ))}
 
@@ -861,14 +937,14 @@ export function EnhancedDocContent() {
           <div>
             <p>Last updated: {selectedDocumentation?.lastUpdatedAt ? new Date(selectedDocumentation.lastUpdatedAt).toLocaleDateString() : 'Unknown'}</p>
             <p>Author: {selectedDocumentation?.authorUsername || 'Unknown'}</p>
-          </div>
+            </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="px-2 py-0.5 flex items-center gap-1">
               <Eye className="h-3 w-3" />
               {selectedDocumentation?.views || 0} views
             </Badge>
-          </div>
-        </div>
+            </div>
+            </div>
 
         {/* Navigation buttons */}
         <div className="flex justify-between mt-4">

@@ -95,7 +95,7 @@ const lightModeTextStyle = `
 
 export function EnhancedDocumentationLayout() {
   const [isClient, setIsClient] = useState(false)
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggleTheme, setIsDocumentation } = useTheme()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [isMobile, setIsMobile] = useState(false)
@@ -264,6 +264,16 @@ export function EnhancedDocumentationLayout() {
 
   // At the top of your component, get the selected items from the store
   const { selectedDocumentation, selectedSection } = useDocumentationStore();
+
+  // Mark that we're in documentation mode
+  useEffect(() => {
+    setIsDocumentation(true)
+    
+    return () => {
+      // Clean up when leaving documentation
+      setIsDocumentation(false)
+    }
+  }, [setIsDocumentation])
 
   if (!isClient) {
     return (
