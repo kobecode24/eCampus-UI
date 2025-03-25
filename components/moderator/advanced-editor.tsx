@@ -15,6 +15,7 @@ import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import CodeBlock from "@tiptap/extension-code-block"
 import { useTheme } from "@/contexts/theme-context"
+import { createEditorExtensions } from "./editor-extensions"
 
 export function AdvancedEditor() {
   const [activeTab, setActiveTab] = useState("write")
@@ -51,31 +52,10 @@ export function AdvancedEditor() {
 
   // Create a read-only preview editor instance
   const previewEditor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // Disable CodeBlock to prevent conflicts
-        codeBlock: false,
-      }),
-      Link.configure({
-        openOnClick: true,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-md max-w-full",
-        },
-      }),
-      CodeBlock.configure({
-        HTMLAttributes: {
-          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
-        },
-      }),
-    ],
+    extensions: createEditorExtensions(false), // false for read-only
     content,
-    editable: false, // Read-only for preview
-    immediatelyRender: false, // Fix SSR issues
+    editable: false,
+    immediatelyRender: false,
   })
 
   // Update preview editor content when main content changes
@@ -85,86 +65,100 @@ export function AdvancedEditor() {
     }
   }, [content, previewEditor])
 
-  // Custom styles to prevent background flashes
+  // Custom styles to prevent background flashes and ensure eye-friendly backgrounds in both modes
   const customStyles = `
     <style>
-      /* Make editor transition properly with theme changes */
-      .enhanced-editor.preview-editor, 
-      .enhanced-editor.preview-editor *,
-      .preview-editor .ProseMirror,
-      .preview-editor .ProseMirror *,
-      .preview-editor .glass-panel,
-      .preview-editor .glass-panel * {
-        transition: background-color 0.2s ease, color 0.2s ease !important;
-        background-color: transparent !important;
+      /* Global editor styling - apply to both edit and preview modes */
+      .ProseMirror,
+      .enhanced-editor .ProseMirror,
+      .glass-panel,
+      .enhanced-editor .glass-panel {
+        background-color: rgba(30, 41, 59, 0.8) !important; /* Dark slate blue background */
+        color-scheme: dark !important;
+        transition: none !important;
       }
       
-      /* Ensure hover states don't change background */
+      /* Force these styles to override any hover/focus states */
+      .ProseMirror:hover,
+      .ProseMirror:focus,
+      .ProseMirror:active,
+      .enhanced-editor .ProseMirror:hover,
+      .enhanced-editor .ProseMirror:focus,
+      .enhanced-editor .ProseMirror:active {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        cursor: text;
+      }
+
+      /* Specifically target read-only editor cursor */
+      .preview-editor .ProseMirror,
       .preview-editor .ProseMirror:hover,
-      .preview-editor .ProseMirror:focus,
-      .preview-editor .ProseMirror:active,
-      .preview-editor .ProseMirror *:hover,
-      .preview-editor .ProseMirror *:focus,
-      .preview-editor .ProseMirror *:active {
-        background-color: transparent !important;
+      .preview-editor .ProseMirror:focus {
         cursor: default !important;
       }
       
-      /* Set the glass panel styling for dark mode */
-      .dark .preview-editor .glass-panel {
-        background-color: rgba(15, 23, 42, 0.3) !important;
+      /* Glass panel consistent styling regardless of theme */
+      .glass-panel,
+      .glass-panel:hover,
+      .light .glass-panel,
+      .dark .glass-panel {
+        background-color: rgba(30, 41, 59, 0.8) !important;
         backdrop-filter: blur(4px) !important;
         box-shadow: none !important;
       }
       
-      /* Set the glass panel styling for light mode */
-      .light .preview-editor .glass-panel {
-        background-color: rgba(255, 255, 255, 0.5) !important;
-        backdrop-filter: blur(4px) !important;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05) !important;
+      /* Code blocks styling */
+      pre,
+      .light pre,
+      .dark pre {
+        background: rgb(30, 27, 75) !important;
       }
       
-      /* Fix code blocks to maintain their styling */
-      .dark .preview-editor pre {
-        background: rgb(30 27 75) !important;
-      }
-      
-      .light .preview-editor pre {
-        background: rgb(241 245 249) !important;
-      }
-      
-      /* Set text colors for dark and light modes */
-      .dark .preview-editor .prose {
+      /* Text colors - maintain good contrast on dark background */
+      .prose,
+      .light .prose,
+      .dark .prose {
         color: #f8fafc !important;
-      }
-      
-      .light .preview-editor .prose {
-        color: #0f172a !important;
-      }
-      
-      .preview-editor .prose {
         max-width: none !important;
       }
       
-      /* Text color adjustments for dark mode */
-      .dark .preview-editor h1, 
-      .dark .preview-editor h2, 
-      .dark .preview-editor h3, 
-      .dark .preview-editor h4, 
-      .dark .preview-editor h5, 
-      .dark .preview-editor h6 {
+      /* Headings */
+      h1, h2, h3, h4, h5, h6,
+      .light h1, .light h2, .light h3, .light h4, .light h5, .light h6,
+      .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
         color: #f1f5f9 !important;
       }
       
-      .dark .preview-editor p, 
-      .dark .preview-editor li, 
-      .dark .preview-editor blockquote {
+      /* Body text */
+      p, li, blockquote,
+      .light p, .light li, .light blockquote,
+      .dark p, .dark li, .dark blockquote {
         color: #e2e8f0 !important;
       }
       
-      /* Selection styling that works with both modes */
-      .preview-editor ::selection {
-        background-color: rgba(79, 70, 229, 0.2) !important;
+      /* Links */
+      a, .light a, .dark a {
+        color: #93c5fd !important;
+      }
+      
+      /* Force dark scrollbars */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.3);
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(148, 163, 184, 0.5);
+        border-radius: 4px;
+      }
+      
+      /* Selection styling */
+      ::selection {
+        background-color: rgba(79, 70, 229, 0.4) !important;
+        color: white !important;
       }
     </style>
   `
@@ -305,11 +299,15 @@ export function AdvancedEditor() {
           <TabsContent value="write" className="h-full m-0">
             {/* Wrap the editor in a div with the desired styling */}
             <div className="min-h-[400px] p-4">
-              <EnhancedTipTapEditor 
-                key={`editor-${editorKey.current}`}
-                content={content} 
-                onChange={handleContentChange}
-              />
+              <div className="enhanced-editor editor-mode">
+                <EnhancedEditorStyles />
+                <div dangerouslySetInnerHTML={{ __html: customStyles }} />
+                <EnhancedTipTapEditor 
+                  key={`editor-${editorKey.current}`}
+                  content={content} 
+                  onChange={handleContentChange}
+                />
+              </div>
             </div>
           </TabsContent>
           

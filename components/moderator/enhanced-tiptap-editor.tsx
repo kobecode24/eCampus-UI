@@ -28,6 +28,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { EnhancedEditorStyles } from "./enhanced-editor-styles"
+import { createEditorExtensions } from "./editor-extensions"
 
 interface EnhancedTipTapEditorProps {
   content: string
@@ -59,25 +60,7 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
   }, [])
 
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-blue-500 underline cursor-pointer hover:text-blue-700",
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: "rounded-md max-w-full",
-        },
-      }),
-      CodeBlock.configure({
-        HTMLAttributes: {
-          class: "bg-indigo-950 text-indigo-300 p-4 rounded-md font-mono text-sm my-4 overflow-x-auto",
-        },
-      }),
-    ],
+    extensions: createEditorExtensions(true),
     content,
     editable,
     onUpdate: ({ editor }) => {
@@ -156,6 +139,33 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
     toolbar.style.transform = `translate(${x}px, ${y}px)`
   }, [mousePosition, isFloatingToolbar])
 
+  const editorCustomStyles = `
+    <style>
+      /* Force dark theme for editor */
+      .ProseMirror, 
+      .enhanced-editor .ProseMirror, 
+      .tiptap-toolbar, 
+      .tiptap-floating-toolbar {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        color: #e2e8f0 !important;
+      }
+
+      /* Override any hover states */
+      .ProseMirror:hover,
+      .ProseMirror:focus,
+      .enhanced-editor .ProseMirror:hover,
+      .enhanced-editor .ProseMirror:focus {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+      }
+      
+      /* Glass panel styling */
+      .glass-panel {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        backdrop-filter: blur(4px);
+      }
+    </style>
+  `
+
   if (!isMounted) {
     return (
       <div className="h-64 w-full bg-indigo-900/20 border border-indigo-500/30 rounded-md flex items-center justify-center">
@@ -174,6 +184,7 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
   return (
     <div className="enhanced-editor" ref={editorRef}>
       <EnhancedEditorStyles />
+      <div dangerouslySetInnerHTML={{ __html: editorCustomStyles }} />
 
       {editable && (
         <>
@@ -261,31 +272,6 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
               className="animated-button text-indigo-300 hover:bg-indigo-800/50 hover:text-white"
             >
               <ImageIcon className="h-4 w-4" />
-            </Button>
-            <div className="border-r border-indigo-500/30 mx-1 h-6"></div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setTextAlign("left").run()}
-              className={`animated-button ${editor.isActive({ textAlign: "left" }) ? "bg-indigo-700/50" : "bg-transparent"} text-indigo-300 hover:bg-indigo-800/50 hover:text-white`}
-            >
-              <AlignLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setTextAlign("center").run()}
-              className={`animated-button ${editor.isActive({ textAlign: "center" }) ? "bg-indigo-700/50" : "bg-transparent"} text-indigo-300 hover:bg-indigo-800/50 hover:text-white`}
-            >
-              <AlignCenter className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => editor.chain().focus().setTextAlign("right").run()}
-              className={`animated-button ${editor.isActive({ textAlign: "right" }) ? "bg-indigo-700/50" : "bg-transparent"} text-indigo-300 hover:bg-indigo-800/50 hover:text-white`}
-            >
-              <AlignRight className="h-4 w-4" />
             </Button>
             <div className="border-r border-indigo-500/30 mx-1 h-6"></div>
             <Button
@@ -419,4 +405,3 @@ export function EnhancedTipTapEditor({ content, onChange, editable = true }: Enh
     </div>
   )
 }
-
