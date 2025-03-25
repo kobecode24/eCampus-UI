@@ -5,6 +5,7 @@ export interface BlogCommentDTO {
     blogId: string;
     authorId: string;
     authorUsername: string;
+    authorAvatarUrl?: string;
     createdAt: string;
-    lastUpdatedAt: string;
+    lastUpdatedAt?: string;
   }
