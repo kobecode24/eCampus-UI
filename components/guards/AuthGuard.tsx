@@ -1,4 +1,4 @@
-/* import { ReactNode, useEffect, useState } from 'react'
+ import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -26,7 +26,7 @@ export function AuthGuard({ children, mode }: AuthGuardProps) {
   useEffect(() => {
     if (mounted && initialized && !loading) {
       if (mode === 'guest' && isAuthenticated) {
-        router.push('/dev-forum')
+        router.push('/')
       } else if (mode === 'auth' && !isAuthenticated) {
         router.push('/login')
       }
@@ -53,4 +53,4 @@ export function AuthGuard({ children, mode }: AuthGuardProps) {
   }
 
   return <div>{children}</div>
-}  */
+}
