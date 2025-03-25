@@ -253,6 +253,18 @@ function ContentDisplay({ content }: { content: string }) {
   return <ReadOnlyTipTapContent content={content} />;
 }
 
+// Add throttle utility at the top of the file
+function throttle(func: Function, limit: number) {
+  let inThrottle: boolean;
+  return function(...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  }
+}
+
 export function EnhancedDocContent() {
   const { theme, setTheme } = useTheme()
   const {
@@ -305,6 +317,33 @@ export function EnhancedDocContent() {
   // Add these new states
   const [isMounted, setIsMounted] = useState(false)
 
+  // Add error boundary state
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize component
+  useEffect(() => {
+    setIsClient(true)
+    setIsLoading(false)
+  }, [])
+
+  // Add error handler for content loading
+  useEffect(() => {
+    if (selectedDocumentation) {
+      setHasError(false);
+      try {
+        // Verify content exists
+        if (!selectedDocumentation.content && !selectedDocumentation.sections?.length) {
+          console.warn('No content available for selected documentation');
+          setHasError(true);
+        }
+      } catch (error) {
+        console.error('Error loading documentation content:', error);
+        setHasError(true);
+      }
+    }
+  }, [selectedDocumentation]);
+
   // Update reading time when documentation changes
   useEffect(() => {
     if (selectedDocumentation?.id) {
@@ -337,87 +376,57 @@ export function EnhancedDocContent() {
     }
   }, [setTheme])
 
-  // Initialize client-side state
+  // Update the useEffect that handles scroll events
   useEffect(() => {
-    setIsClient(true)
+    if (!contentRef.current) return;
 
-    // Set up intersection observer to track active section
+    // Throttled scroll handler
+    const handleScroll = throttle(() => {
+      if (!contentRef.current) return;
+
+      const scrollTop = window.scrollY;
+      const scrollHeight = contentRef.current.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      const progress = scrollTop / (scrollHeight - clientHeight);
+      setReadingProgress(Math.min(Math.max(progress, 0), 1));
+    }, 100); // Update every 100ms instead of every scroll event
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [setReadingProgress]);
+
+  // Optimize intersection observer
+  useEffect(() => {
     const observerOptions = {
       root: null,
       rootMargin: "-100px 0px -60% 0px",
-      threshold: 0.1,
+      threshold: [0, 0.1, 0.5, 1], // Reduce number of calculations
     }
 
-    const observerCallback: IntersectionObserverCallback = (entries) => {
+    const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting && entry.target.id) {
-          setActiveSection(entry.target.id)
-          markSectionAsRead(entry.target.id)
+          setActiveSection(entry.target.id);
+          markSectionAsRead(entry.target.id);
         }
-      })
-    }
+      });
+    }, observerOptions);
 
-    const observer = new IntersectionObserver(observerCallback, observerOptions)
+    // Use requestIdleCallback to defer non-critical work
+    requestIdleCallback(() => {
+      document.querySelectorAll("section[id]").forEach((section) => {
+        observer.observe(section);
+        sectionRefs.current[section.id] = section as HTMLElement;
+      });
+    });
 
-    // Observe all section headers
-    document.querySelectorAll("section[id]").forEach((section) => {
-      observer.observe(section)
-      sectionRefs.current[section.id] = section as HTMLElement
-    })
-
-    // Calculate reading time based on content length
-    if (contentRef.current) {
-      const text = contentRef.current.textContent || ""
-      const wordCount = text.split(/\s+/).length
-      const wordsPerMinute = 200
-      setReadingTime(Math.ceil(wordCount / wordsPerMinute))
-    }
-
-    // Update reading progress as user scrolls
-    const updateReadingProgress = () => {
-      if (!contentRef.current) return
-
-      const scrollTop = window.scrollY
-      const scrollHeight = contentRef.current.scrollHeight
-      const clientHeight = window.innerHeight
-
-      const progress = scrollTop / (scrollHeight - clientHeight)
-      setReadingProgress(Math.min(Math.max(progress, 0), 1))
-    }
-
-    window.addEventListener("scroll", updateReadingProgress)
-    updateReadingProgress()
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener("scroll", updateReadingProgress)
-    }
-  }, [setActiveSection, markSectionAsRead, setReadingProgress])
-
-  // Add scroll event listener to track scrolling activity
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolling(true)
-      
-      // Clear previous timer if exists
-      if (scrollTimer) {
-        clearTimeout(scrollTimer)
-      }
-      
-      // Set a new timer to hide the progress bar after scrolling stops
-      const timer = setTimeout(() => {
-        setIsScrolling(false)
-      }, 1500) // Hide after 1.5 seconds of no scrolling
-      
-      setScrollTimer(timer)
-    }
-    
-    window.addEventListener("scroll", handleScroll)
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-      if (scrollTimer) clearTimeout(scrollTimer)
-    }
-  }, [scrollTimer])
+    return () => observer.disconnect();
+  }, [setActiveSection, markSectionAsRead]);
 
   // Toggle code block expansion
   const toggleCodeBlockExpansion = (blockId: string) => {
@@ -865,17 +874,42 @@ export function EnhancedDocContent() {
     setIsMounted(true)
   }, [])
 
-  if (!isClient) {
-    return <div className="h-96 animate-pulse bg-gray-200 dark:bg-gray-800 rounded-md"></div>
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading content...</p>
+      </div>
+      </div>
+    );
   }
 
-  // If no documentation or section is selected, show a placeholder
-  if (!selectedDocumentation && !selectedSection) {
+  // Show error state
+  if (hasError) {
+  return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <p className="text-destructive">Failed to load documentation content</p>
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // If no documentation is selected, show a placeholder
+  if (!selectedDocumentation) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
         <p className="text-muted-foreground">Select a document to view its content</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -900,7 +934,7 @@ export function EnhancedDocContent() {
         {/* Main content with TipTap renderer */}
         <motion.div className="mt-4" style={{ opacity: subtitleOpacity }}>
           {selectedDocumentation?.content && (
-            <ReadOnlyTipTapContent content={selectedDocumentation.content} />
+            <ContentDisplay content={selectedDocumentation.content} />
           )}
         </motion.div>
 
@@ -926,13 +960,12 @@ export function EnhancedDocContent() {
           title={section.title} 
           level={2}
         >
-          {/* Use ContentDisplay which handles errors gracefully */}
           <ContentDisplay content={section.content} />
         </Section>
       ))}
 
       {/* Documentation footer */}
-      <div className="mt-16 pt-8 border-t border-border flex flex-col gap-3">
+      <div className="mt-16 pt-8 border-t border-border">
         <div className="flex justify-between items-center text-sm text-muted-foreground">
           <div>
             <p>Last updated: {selectedDocumentation?.lastUpdatedAt ? new Date(selectedDocumentation.lastUpdatedAt).toLocaleDateString() : 'Unknown'}</p>
@@ -945,31 +978,9 @@ export function EnhancedDocContent() {
             </Badge>
             </div>
             </div>
-
-        {/* Navigation buttons */}
-        <div className="flex justify-between mt-4">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => navigateToPreviousSection()}
-            disabled={!getPreviousSection()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Previous: {getPreviousSection()?.title || 'None'}</span>
-          </Button>
-
-          <Button
-            className="gap-2"
-            onClick={() => navigateToNextSection()}
-            disabled={!getNextSection()}
-          >
-            <span>Next: {getNextSection()?.title || 'None'}</span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
+            </div>
+            </div>
+  );
 }
 
 // Helper functions for content parsing and navigation

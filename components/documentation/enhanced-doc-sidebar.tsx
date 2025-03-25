@@ -48,18 +48,6 @@ interface StaticCategory {
 // Fallback static data for when no real documentation exists
 const fallbackSidebarData: StaticCategory[] = [
   {
-    id: "getting-started",
-    label: "Getting Started",
-    technologyType: "GETTING_STARTED",
-    description: "Introduction and setup guides",
-    items: [
-      { id: "introduction", label: "Introduction", isNew: false, isUpdated: false },
-      { id: "installation", label: "Installation", isNew: false, isUpdated: true },
-      { id: "quick-start", label: "Quick Start Guide", isNew: false, isUpdated: false },
-      { id: "architecture", label: "Architecture Overview", isNew: true, isUpdated: false },
-    ],
-  },
-  {
     id: "core-concepts",
     label: "Core Concepts",
     technologyType: "FRAMEWORK",
@@ -133,12 +121,6 @@ const fallbackSidebarData: StaticCategory[] = [
   },
 ];
 
-// Get only the Getting Started section
-const gettingStartedData = fallbackSidebarData.find(category => 
-  category.technologyType === "GETTING_STARTED"
-);
-
-
 const isNewDocument = (createdAt?: string): boolean => {
   if (!createdAt) return false;
   
@@ -183,15 +165,6 @@ const isRecentlyUpdatedSection = (section: DocumentationSectionDTO): boolean => 
   const createdDiffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
   const updatedDiffHours = (now.getTime() - updated.getTime()) / (1000 * 60 * 60);
   
-  // Log for debugging
-  console.log(`Section ${section.title}:`, {
-    created: created.toISOString(),
-    updated: updated.toISOString(),
-    createdDiffHours,
-    updatedDiffHours,
-    isUpdated: createdDiffHours >= 24 && updatedDiffHours < 24 && created.getTime() !== updated.getTime()
-  });
-  
   // Section is UPDATED if:
   // 1. It's more than 24 hours old (not new)
   // 2. It was updated in the last 24 hours
@@ -201,7 +174,7 @@ const isRecentlyUpdatedSection = (section: DocumentationSectionDTO): boolean => 
 
 export function EnhancedDocSidebar() {
   const [isClient, setIsClient] = useState(false)
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(["GETTING_STARTED"])
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([])
   const [expandedDocuments, setExpandedDocuments] = useState<string[]>([])
   const [filterText, setFilterText] = useState<string>("")
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
@@ -226,6 +199,17 @@ export function EnhancedDocSidebar() {
   // Refs for keyboard navigation
   const sidebarRef = useRef<HTMLDivElement>(null)
   const focusedItemRef = useRef<HTMLAnchorElement>(null)
+
+  // Add debounce for search filter
+  const [debouncedFilterText, setDebouncedFilterText] = useState(filterText);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilterText(filterText);
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [filterText]);
 
   // Initialize client-side state
   useEffect(() => {
@@ -289,9 +273,6 @@ export function EnhancedDocSidebar() {
   // Toggle category expansion
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories((prev) => {
-      // Don't toggle "getting-started" through normal means
-      if (categoryId === "getting-started") return prev;
-      
       return prev.includes(categoryId)
         ? prev.filter((id) => id !== categoryId)
         : [...prev, categoryId];
@@ -381,12 +362,9 @@ export function EnhancedDocSidebar() {
   // Only compute display data once we have client-side rendering
   // This fixes potential infinite rendering loops
   const getDisplayData = () => {
-    // Prepare display data
     let result: Array<[string, any[]]> = [];
 
-    // If no real data, use full fallback data
     if (!hasRealData) {
-      // Use fallback static data grouped by technology type
       const groupedStatic = fallbackSidebarData.reduce((acc: Record<string, any[]>, category) => {
         const techType = category.technologyType;
         if (!acc[techType]) {
@@ -408,20 +386,16 @@ export function EnhancedDocSidebar() {
         return groups
       }, {})
       
-      // Filter documentations and sections based on search text
-      const realDisplayData = Object.entries(groupedDocumentations)
+      result = Object.entries(groupedDocumentations)
         .map(([techType, docs]) => {
           const filteredDocs = docs.filter(doc => {
-            // Keep the document if its title matches the filter
-            const titleMatches = doc.title.toLowerCase().includes(filterText.toLowerCase())
-            
-            // Or if any of its sections match the filter
+            const titleMatches = doc.title.toLowerCase().includes(debouncedFilterText.toLowerCase())
             const docSections = Array.isArray(sections) 
               ? sections.filter(section => section.documentationId === doc.id)
               : [];
             
             const sectionsMatch = docSections.some(section => 
-              section.title?.toLowerCase().includes(filterText.toLowerCase())
+              section.title?.toLowerCase().includes(debouncedFilterText.toLowerCase())
             );
             
             return titleMatches || sectionsMatch
@@ -430,38 +404,14 @@ export function EnhancedDocSidebar() {
           return filteredDocs.length > 0 ? [techType, filteredDocs] : null
         })
         .filter((group): group is [string, DocumentationDTO[]] => group !== null)
-
-      // Always include Getting Started at the top
-      if (gettingStartedData) {
-        result = [["GETTING_STARTED", [gettingStartedData]], ...realDisplayData];
-      } else {
-        result = realDisplayData;
-      }
     }
 
     // Filter displayData based on search text if it's not empty
-    if (filterText) {
+    if (debouncedFilterText) {
       result = result
         .map(([techType, items]) => {
-          if (techType === "GETTING_STARTED" && gettingStartedData) {
-            // Special handling for Getting Started
-            const gettingStartedItems = (items as StaticCategory[]).filter(category => {
-              // Check if category label matches
-              if (category.label.toLowerCase().includes(filterText.toLowerCase())) {
-                return true;
-              }
-              
-              // Check if any items match
-              return category.items.some(item => 
-                item.label.toLowerCase().includes(filterText.toLowerCase())
-              );
-            });
-            
-            return gettingStartedItems.length > 0 ? [techType, gettingStartedItems] : null;
-          } else {
-            // Standard filtering for other categories
-            return [techType, items];
-          }
+          // Standard filtering for all categories
+          return [techType, items];
         })
         .filter((group): group is [string, any[]] => group !== null);
     }
@@ -857,10 +807,7 @@ export function EnhancedDocSidebar() {
 
       <SidebarFooter className="border-t border-border p-4">
         <div className="flex flex-col space-y-2">
-          <div className="text-xs text-muted-foreground">
-            <span className="block">Last updated: April 2024</span>
-            <span className="block mt-1">Documentation version 2.0</span>
-          </div>
+
 
           <Button
             variant="outline"

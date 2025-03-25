@@ -272,73 +272,10 @@ export function EnhancedDocRightPanel() {
                 <List className="h-4 w-4 text-primary" />
                 <h3 className="font-semibold text-sm">ON THIS PAGE</h3>
               </div>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onMouseEnter={() => setCursorVariant("button")}
-                  onMouseLeave={() => setCursorVariant("default")}
-                >
-                  <motion.div
-                    animate={{ rotate: expandedPanels.includes("tableOfContents") ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </motion.div>
-                </Button>
-              </CollapsibleTrigger>
+
             </div>
 
-            <AnimatePresence>
-              {expandedPanels.includes("tableOfContents") && (
-                <CollapsibleContent forceMount asChild>
-                  <motion.div variants={panelVariants} initial="hidden" animate="visible" exit="exit">
-                    <div className="relative mt-2 mb-2">
-                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Filter sections..."
-                        className="w-full pl-8 h-8 text-xs"
-                        value={searchFilter}
-                        onChange={(e) => setSearchFilter(e.target.value)}
-                        onMouseEnter={() => setCursorVariant("text")}
-                        onMouseLeave={() => setCursorVariant("default")}
-                      />
-                    </div>
 
-                    <nav className="mt-2">
-                      <ul className="space-y-1.5">
-                        {filterTableOfContents(tableOfContentsSections).map((section) => {
-                          const isActive = activeSection === section.id
-                          const isRead = readSections.includes(section.id)
-
-                          return (
-                            <li key={section.id}>
-                              <a
-                                href={`#${section.id}`}
-                                className={cn(
-                                  "flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
-                                  isActive
-                                    ? "bg-accent/50 text-accent-foreground font-medium"
-                                    : "text-muted-foreground hover:bg-accent/30 hover:text-accent-foreground",
-                                  isRead && !isActive && "text-muted-foreground/70",
-                                )}
-                                onMouseEnter={() => setCursorVariant("link")}
-                                onMouseLeave={() => setCursorVariant("default")}
-                              >
-                                <span>{section.label}</span>
-                                {isRead && !isActive && <CheckIcon className="h-3 w-3 text-green-500" />}
-                              </a>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </nav>
-                  </motion.div>
-                </CollapsibleContent>
-              )}
-            </AnimatePresence>
           </Collapsible>
 
           {/* Reading progress */}
@@ -406,67 +343,6 @@ export function EnhancedDocRightPanel() {
             </AnimatePresence>
           </Collapsible>
 
-          {/* Bookmarks */}
-          <Collapsible open={expandedPanels.includes("bookmarks")} onOpenChange={() => togglePanel("bookmarks")}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <h3 className="font-semibold text-sm">YOUR BOOKMARKS</h3>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onMouseEnter={() => setCursorVariant("button")}
-                  onMouseLeave={() => setCursorVariant("default")}
-                >
-                  <motion.div
-                    animate={{ rotate: expandedPanels.includes("bookmarks") ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </motion.div>
-                </Button>
-              </CollapsibleTrigger>
-            </div>
-
-            <AnimatePresence>
-              {expandedPanels.includes("bookmarks") && (
-                <CollapsibleContent forceMount asChild>
-                  <motion.div variants={panelVariants} initial="hidden" animate="visible" exit="exit">
-                    <div className="mt-2">
-                      {bookmarkedSections.length > 0 ? (
-                        <ul className="space-y-1.5">
-                          {bookmarkedSections.map((sectionId) => {
-                            const section = tableOfContentsSections.find((s) => s.id === sectionId)
-                            if (!section) return null
-
-                            return (
-                              <li key={sectionId}>
-                                <a
-                                  href={`#${sectionId}`}
-                                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent/30"
-                                  onMouseEnter={() => setCursorVariant("link")}
-                                  onMouseLeave={() => setCursorVariant("default")}
-                                >
-                                  <span>{section.label}</span>
-                                </a>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      ) : (
-                        <div className="text-sm text-muted-foreground text-center py-2">
-                          No bookmarks yet. Click the bookmark icon next to a section title to save it here.
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                </CollapsibleContent>
-              )}
-            </AnimatePresence>
-          </Collapsible>
 
           <Separator />
 
@@ -700,7 +576,7 @@ export function EnhancedDocRightPanel() {
               <LinkIcon className="h-4 w-4 text-primary" />
               PERMANENT LINK
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-black">
               <Input
                 value="https://devdocs.example.com/getting-started"
                 readOnly
@@ -730,25 +606,6 @@ export function EnhancedDocRightPanel() {
                 </Tooltip>
               </TooltipProvider>
             </div>
-          </div>
-
-          {/* Version selector */}
-          <div className="space-y-2">
-            <h3 className="font-semibold text-sm flex items-center gap-2">
-              <Eye className="h-4 w-4 text-primary" />
-              VERSION
-            </h3>
-            <select
-              className="w-full h-8 text-xs rounded-md border border-border bg-background px-2"
-              defaultValue="v2.0"
-              onMouseEnter={() => setCursorVariant("button")}
-              onMouseLeave={() => setCursorVariant("default")}
-            >
-              <option value="v2.0">v2.0 (current)</option>
-              <option value="v1.5">v1.5</option>
-              <option value="v1.0">v1.0</option>
-              <option value="v0.9">v0.9 (beta)</option>
-            </select>
           </div>
         </div>
       </ScrollArea>

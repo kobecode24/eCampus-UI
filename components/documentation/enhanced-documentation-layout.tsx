@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Lightbulb,
   Zap,
+  ChevronLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ import { EnhancedDocRightPanel } from "./enhanced-doc-right-panel"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import {useDocumentationStore} from "@/stores/useDocumentationStore";
+import Link from "next/link";
 
 // Documentation context for sharing state between components
 type DocContextType = {
@@ -93,6 +95,36 @@ const lightModeTextStyle = `
   }
 `;
 
+// Add these styles near the top of your component
+const performanceStyles = `
+  <style>
+    /* Enable hardware acceleration */
+    .documentation-container {
+      transform: translateZ(0);
+      backface-visibility: hidden;
+      perspective: 1000px;
+      will-change: transform;
+    }
+
+    /* Reduce paint operations during scroll */
+    .documentation-content * {
+      backface-visibility: hidden;
+      -webkit-font-smoothing: subpixel-antialiased;
+    }
+
+    /* Optimize fixed elements */
+    .sticky {
+      will-change: transform;
+      transform: translateZ(0);
+    }
+
+    /* Reduce repaints for animated elements */
+    .animated-element {
+      will-change: transform, opacity;
+    }
+  </style>
+`;
+
 export function EnhancedDocumentationLayout() {
   const [isClient, setIsClient] = useState(false)
   const { theme, toggleTheme, setIsDocumentation } = useTheme()
@@ -111,6 +143,7 @@ export function EnhancedDocumentationLayout() {
   const [showCustomCursor, setShowCustomCursor] = useState(false)
   const useStandardScrolling = true
   const [readingProgress, setReadingProgress] = useState(0)
+  const [showNoDocMessage, setShowNoDocMessage] = useState(true)
 
   const mainRef = useRef<HTMLDivElement>(null)
   const cursorRef = useRef<HTMLDivElement>(null)
@@ -122,15 +155,15 @@ export function EnhancedDocumentationLayout() {
 
   // Smooth scroll progress for animations
   const smoothScrollProgress = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001,
+    stiffness: 50,
+    damping: 20,
+    restDelta: 0.01
   })
 
   // Background animation based on scroll - make it more subtle
-  const backgroundOpacity = useTransform(smoothScrollProgress, [0, 0.5, 1], [0.05, 0.07, 0.1]) // Reduced values
-  const backgroundSize = useTransform(smoothScrollProgress, [0, 1], ["100%", "105%"]) // Reduced from 120% to 105%
-  const backgroundPosition = useTransform(smoothScrollProgress, [0, 1], ["0% 0%", "2% 2%"]) // Reduced from 10% to 2%
+  const backgroundOpacity = useTransform(smoothScrollProgress, [0, 1], [0.05, 0.1])
+  const backgroundSize = useTransform(smoothScrollProgress, [0, 1], ["100%", "102%"])
+  const backgroundPosition = useTransform(smoothScrollProgress, [0, 1], ["0% 0%", "1% 1%"])
 
   // Update reading progress as user scrolls - keep this functionality but make it less intrusive
   useMotionValueEvent(scrollYProgress, "change", (latest) => {
@@ -263,7 +296,7 @@ export function EnhancedDocumentationLayout() {
   }, []);
 
   // At the top of your component, get the selected items from the store
-  const { selectedDocumentation, selectedSection } = useDocumentationStore();
+  const { selectedDocumentation, selectedSection, setSelectedDocumentation, setSelectedSection } = useDocumentationStore();
 
   // Mark that we're in documentation mode
   useEffect(() => {
@@ -274,6 +307,17 @@ export function EnhancedDocumentationLayout() {
       setIsDocumentation(false)
     }
   }, [setIsDocumentation])
+
+  // Then add this effect to reset the message when a document is selected
+  useEffect(() => {
+    // If there's a selected document, hide the message
+    if (selectedDocumentation) {
+      setShowNoDocMessage(false);
+    } else {
+      // If no document is selected, show the message
+      setShowNoDocMessage(true);
+    }
+  }, [selectedDocumentation]);
 
   if (!isClient) {
     return (
@@ -326,6 +370,18 @@ export function EnhancedDocumentationLayout() {
       y: cursorPosition.y - 18,
     },
   }
+
+  // Optimize motion animations by disabling them on scroll
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.02,
+        delayChildren: 0.05,
+      },
+    },
+  };
 
   return (
     <DocContext.Provider
@@ -443,15 +499,28 @@ export function EnhancedDocumentationLayout() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                <a href="/dev-forum" className={cn("text-sm transition-colors shrink-0",
-                  theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
-                )}>
+                <Link 
+                  href="/" 
+                  className={cn("text-sm transition-colors shrink-0",
+                    theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
+                  )}
+                >
                   Home
-                </a>
+                </Link>
                 <ChevronRight className="h-4 w-4 shrink-0" />
-                <a href="/dev-forum/documentation" className={cn("text-sm transition-colors shrink-0",
-                  theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
-                )}>
+                <a
+                  href="/dev-forum/documentation"
+                  onClick={(e) => {
+                    e.preventDefault(); // Prevent navigation
+                    // Clear any selected documentation
+                    setSelectedDocumentation(null);
+                    setSelectedSection(null);
+                    // Show the "no document selected" message
+                    setShowNoDocMessage(true);
+                  }}
+                  className={cn("text-sm transition-colors shrink-0",
+                    theme === "dark" ? "text-muted-foreground hover:text-foreground" : "text-black hover:text-black"
+                  )}>
                   Documentation
                 </a>
 
@@ -488,7 +557,7 @@ export function EnhancedDocumentationLayout() {
                   </>
                 )}
 
-                {selectedSection && (
+                {/*{selectedSection && (
                   <>
                     <ChevronRight className="h-4 w-4 shrink-0" />
                     <TooltipProvider>
@@ -504,7 +573,7 @@ export function EnhancedDocumentationLayout() {
                       </Tooltip>
                     </TooltipProvider>
                   </>
-                )}
+                )}*/}
               </motion.div>
 
               {/* Right section - Actions */}
@@ -638,7 +707,24 @@ export function EnhancedDocumentationLayout() {
                 viewMode === "focused" && "md:px-16 lg:px-32",
               )}
             >
-              <EnhancedDocContent />
+              {showNoDocMessage && !selectedDocumentation && (
+                <div className="flex flex-col items-center justify-center h-full p-8 -mt-32">
+                  <div className="text-center max-w-md transform translate-y-[-40%]">
+                    <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h2 className="text-2xl font-bold mb-2">No document selected</h2>
+                    <p className="text-muted-foreground mb-6">
+                      Select a document from the sidebar to view its content.
+                    </p>
+                    <div className="animate-bounce mt-6">
+                      <ChevronLeft className="h-6 w-6 text-primary inline-block" />
+                      <span className="mx-2 text-primary">Browse documents</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {selectedDocumentation && (
+                <EnhancedDocContent />
+              )}
             </main>
             {viewMode !== "focused" && <EnhancedDocRightPanel />}
           </SidebarProvider>
@@ -673,6 +759,8 @@ export function EnhancedDocumentationLayout() {
             </TooltipProvider>
           </motion.div>
         )}
+
+        <div dangerouslySetInnerHTML={{ __html: performanceStyles }} />
       </div>
     </DocContext.Provider>
   )
