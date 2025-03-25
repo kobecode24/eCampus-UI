@@ -70,14 +70,6 @@ export function ForumHeader() {
     window.location.href = '/login'
   }
 
-  // For debugging
-  const debugUserRoles = () => {
-    console.log("Current user data:", user);
-    console.log("Admin status:", isAdmin);
-    // Force isAdmin to true for testing
-    setIsAdmin(true);
-  }
-
   return (
     <header className="border-b border-white border-opacity-20 bg-gradient-to-r from-indigo-900 to-purple-900 dark:from-gray-800 dark:to-gray-900 backdrop-filter backdrop-blur-lg bg-opacity-30">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -146,7 +138,7 @@ export function ForumHeader() {
                 {isAdmin && (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/dev-forum/admin" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
+                      <Link href="/dev-forum/admin/users" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
                         <Shield className="mr-2 h-4 w-4" />
                         <span>Admin Dashboard</span>
                       </Link>
@@ -164,12 +156,6 @@ export function ForumHeader() {
                   className="hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer"
                 >
                   Log out
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={debugUserRoles}
-                  className="hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer"
-                >
-                  Debug Admin Access
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

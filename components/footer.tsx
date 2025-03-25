@@ -29,7 +29,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-8 pt-8 border-t border-white border-opacity-20 text-center">
-          <p className="text-sm">&copy; 2023 ElpForum. All rights reserved.</p>
+          <p className="text-sm">&copy; 2025 ElpForum. All rights reserved.</p>
         </div>
       </div>
     </footer>
