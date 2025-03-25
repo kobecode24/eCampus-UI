@@ -25,6 +25,7 @@ export function CommentModal({ blogId, onClose, onCommentAdded }: CommentModalPr
   const [submitting, setSubmitting] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
+  const [totalComments, setTotalComments] = useState(0)
   const { toast } = useToast()
 
   const fetchComments = async (resetPage = false) => {
@@ -37,7 +38,14 @@ export function CommentModal({ blogId, onClose, onCommentAdded }: CommentModalPr
         const newComments = response.data.data.content
         setComments(prev => resetPage ? newComments : [...prev, ...newComments])
         setPage(prev => resetPage ? 1 : prev + 1)
-        setHasMore(newComments.length > 0)
+        
+        // Check if there are more pages to load
+        const totalElements = response.data.data.totalElements || 0
+        const hasMoreComments = newComments.length > 0 && comments.length + newComments.length < totalElements
+        setHasMore(hasMoreComments)
+        
+        // Store total comments count
+        setTotalComments(totalElements)
       }
     } catch (error) {
       toast({
@@ -126,6 +134,7 @@ export function CommentModal({ blogId, onClose, onCommentAdded }: CommentModalPr
                       loading={loading}
                       hasMore={hasMore}
                       onLoadMore={() => fetchComments()}
+                      totalComments={totalComments}
                     />
                   </div>
 

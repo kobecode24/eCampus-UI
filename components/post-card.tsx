@@ -1,53 +1,18 @@
-import { ArrowUp, ArrowDown, MessageSquare, Code, Heart, HeartOff } from 'lucide-react'
+import { MessageSquare, Heart } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from 'react'
-import { blogService } from '../services/api'
+import { blogService } from '@/services/api'
 import { BlogDTO } from '@/app/types/blog'
 import { CommentModal } from './comment-modal'
 import { toast } from "@/components/ui/use-toast"
+import { UserAvatar } from "@/components/user-avatar"
 
 interface PostCardProps {
-  title: string;
-  author: string;
-  content: string;
-  category: string;
-  votes: number;
-  comments: number;
-  codeSnippet: string;
-  onComment?: () => void;
   post: BlogDTO;
-  onLikeUpdate?: (postId: string, newLikeCount: number, hasLiked: boolean) => void;
+  onLikeUpdate?: (postId: string, newLikes: number, hasLiked: boolean) => void;
 }
-
-const staticPosts: BlogDTO[] = [
-  {
-    id: "1",
-    title: "Getting Started with React",
-    content: "Learn the basics of React development...",
-    authorUsername: "ReactMaster",
-    likes: 42,
-    comments: 5,
-    category: "React",
-    codeSnippet: "console.log('Hello World');",
-    createdAt: new Date().toISOString(),
-    hasLiked: false
-  },
-  {
-    id: "2",
-    title: "TypeScript Fundamentals",
-    content: "Master TypeScript in 30 days...",
-    authorUsername: "TypeScriptPro",
-    likes: 35,
-    comments: 2,
-    category: "TypeScript",
-    codeSnippet: "const greet = (name: string) => `Hello ${name}`;",
-    createdAt: new Date().toISOString(),
-    hasLiked: true
-  }
-];
 
 export function PostCard({ post, onLikeUpdate }: PostCardProps) {
   const [voteStatus, setVoteStatus] = useState<'up' | 'down' | null>(null)
@@ -56,6 +21,7 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
   const [isCommentModalOpen, setIsCommentModalOpen] = useState(false)
   const [hasLiked, setHasLiked] = useState(post?.hasLiked || false)
   const [likeCount, setLikeCount] = useState(post?.likes || 0)
+  const [commentCount, setCommentCount] = useState(post?.comments?.length || 0)
 
   useEffect(() => {
     // Initialize vote status and score when post data changes
@@ -64,6 +30,7 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
       setScore(post.likes)
       setHasLiked(post.hasLiked)
       setLikeCount(post.likes)
+      setCommentCount(post.comments?.length || 0)
     }
   }, [post])
 
@@ -91,6 +58,19 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
     }
   }
 
+  const handleCommentAdded = async () => {
+    try {
+      // Fetch the updated post data to get the accurate comment count
+      const response = await blogService.getBlogById(post.id)
+      if (response.data.success) {
+        const updatedPost = response.data.data
+        setCommentCount(updatedPost.comments.length)
+      }
+    } catch (error) {
+      console.error('Failed to update comment count:', error)
+    }
+  }
+
   if (!post) return null;
 
   return (
@@ -105,12 +85,16 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center space-x-2 mb-2">
-          <Avatar className="h-6 w-6">
-            <AvatarFallback>{post.authorUsername[0]}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm text-gray-600">{post.authorUsername}</span>
+          <UserAvatar 
+            username={post.authorUsername} 
+            avatarUrl={post.authorAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.authorUsername)}&background=random`} 
+            size="sm" 
+          />
+          <span className="text-sm text-gray-300">{post.authorUsername}</span>
         </div>
-        <p className="text-sm mb-4 text-gray-800 line-clamp-3">{post.content}</p>
+        <div className="blog-content prose prose-sm max-w-none">
+          <p className="line-clamp-3">{post.content}</p>
+        </div>
         {post.codeSnippet && (
           <div className="bg-gray-100 p-2 rounded-md mb-4">
             <pre className="text-xs">
@@ -148,7 +132,7 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
           onClick={() => setIsCommentModalOpen(true)}
         >
           <MessageSquare className="mr-1 h-4 w-4" />
-          <span className="text-sm font-medium">{post.comments.length}</span>
+          <span className="text-sm font-medium">{commentCount}</span>
         </Button>
       </CardFooter>
 
@@ -156,9 +140,7 @@ export function PostCard({ post, onLikeUpdate }: PostCardProps) {
         <CommentModal
           blogId={post.id}
           onClose={() => setIsCommentModalOpen(false)}
-          onCommentAdded={() => {
-            // Optionally refresh comment count or post data
-          }}
+          onCommentAdded={handleCommentAdded}
         />
       )}
     </Card>

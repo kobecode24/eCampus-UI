@@ -1,8 +1,5 @@
 import { ForumHeader } from "@/components/forum-header"
 import { TrendingPostList } from "@/components/trending-post-list"
-import { TrendingFilter } from "@/components/trending-filter"
-import { SearchBar } from "@/components/search-bar"
-import { CreatePostButton } from "@/components/create-post-button"
 
 export function TrendingPage() {
   return (
@@ -13,12 +10,8 @@ export function TrendingPage() {
           <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-yellow-500">
             Trending Discussions
           </h1>
-          <div className="flex items-center space-x-4">
-            <SearchBar />
-            <CreatePostButton />
-          </div>
+
         </div>
-        <TrendingFilter />
         <TrendingPostList />
       </main>
     </div>

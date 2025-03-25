@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils"
 interface CreateBlogModalProps {
   open: boolean
   onClose: () => void
+  onSuccess: () => void
 }
 
-export function CreateBlogModal({ open, onClose }: CreateBlogModalProps) {
+export function CreateBlogModal({ open, onClose, onSuccess }: CreateBlogModalProps) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [tags, setTags] = useState("")
@@ -48,6 +49,7 @@ export function CreateBlogModal({ open, onClose }: CreateBlogModalProps) {
         setContent("")
         setTags("")
         onClose()
+        onSuccess()
       }
     } catch (error) {
       toast({
@@ -134,7 +136,7 @@ export function CreateBlogModal({ open, onClose }: CreateBlogModalProps) {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      {/*<div className="space-y-2">
                         <Label htmlFor="tags" className="text-white">Tags</Label>
                         <Input
                           id="tags"
@@ -147,7 +149,7 @@ export function CreateBlogModal({ open, onClose }: CreateBlogModalProps) {
                           )}
                           placeholder="tech, programming, web development"
                         />
-                      </div>
+                      </div>*/}
 
                       <div className="flex justify-end space-x-3 pt-4">
                         <Button

@@ -2,7 +2,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { debounce } from 'lodash'
 import { PostCard } from "@/components/post-card"
 import { Button } from "@/components/ui/button"
 import { blogService } from "@/services/api"
@@ -10,7 +9,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CreateBlogModal } from "@/components/create-blog-modal"
 import { CommentSection } from "@/components/comment-section"
 import { motion, AnimatePresence } from "framer-motion"
-import { Loader2, PlusIcon, Search, X } from "lucide-react"
+import { Loader2, PlusIcon, X } from "lucide-react"
 import { 
   Select, 
   SelectContent, 
@@ -20,53 +19,15 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { BlogDTO } from "@/app/types/blog"
-import { BlogCommentDTO } from "@/app/types/comment"
 import { CommentModal } from "@/components/comment-modal"
-
-
+import { TrendingFilter } from "@/components/trending-filter"
 
 type SortOption = "trending" | "latest" | "most-commented";
-
-interface ExtendedBlogDTO extends BlogDTO {
-  showComments?: boolean;
-  commentCount?: number;
-}
-
 // Add static posts here instead of in PostCard
-const staticPosts: BlogDTO[] = [
-  {
-    id: "1",
-    title: "Sample Post 1",
-    content: "This is a sample post content...",
-    authorUsername: "user1",
-    likes: 10,
-    comments: 2,
-    createdAt: new Date().toISOString(),
-    hasLiked: false,
-    // Add other required properties
-    authorId: "1",
-    published: true,
-    category: "Tech",
-    codeSnippet: "console.log('Hello World');"
-  },
-  {
-    id: "2",
-    title: "Sample Post 2",
-    content: "Another example post...",
-    authorUsername: "user2",
-    likes: 5,
-    comments: 1,
-    createdAt: new Date().toISOString(),
-    hasLiked: true,
-    authorId: "2",
-    published: true,
-    category: "Web Dev",
-    codeSnippet: "const example = () => {};"
-  }
-];
-
+new Date().toISOString();
+new Date().toISOString();
 export function TrendingPostList() {
-  const [posts, setPosts] = useState<BlogDTO[]>(staticPosts)
+  const [posts, setPosts] = useState<BlogDTO[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -76,81 +37,126 @@ export function TrendingPostList() {
   const [selectedPost, setSelectedPost] = useState<string | null>(null)
   const { toast } = useToast()
 
+  // Add this state to store all fetched posts
+  const [allPosts, setAllPosts] = useState<BlogDTO[]>([])
+  const [filteredPosts, setFilteredPosts] = useState<BlogDTO[]>([])
+
   const fetchPosts = async (resetPage = false) => {
     try {
-      setLoading(true)
-      const currentPage = resetPage ? 0 : page
+      setLoading(true);
+      const currentPage = resetPage ? 0 : page;
+      
+      console.log(`Fetching posts: sortBy=${sortBy}, page=${currentPage}`);
+      
       let response;
-
-      if (searchQuery) {
-        response = await blogService.searchBlogs(searchQuery, currentPage)
-      } else {
-        switch (sortBy) {
-          case "trending":
-            response = await blogService.getTrendingBlogs(currentPage)
-            break
-          case "latest":
-            response = await blogService.getLatestBlogs(currentPage)
-            break
-          case "most-commented":
-            response = await blogService.getAllBlogs(currentPage, 10, "comments.size,desc")
-            break
-          default:
-            response = await blogService.getTrendingBlogs(currentPage)
-        }
+      
+      // Only fetch from backend if not searching or first load
+      switch (sortBy) {
+        case "trending":
+          response = await blogService.getTrendingBlogs(currentPage);
+          break;
+        case "latest":
+          response = await blogService.getLatestBlogs(currentPage);
+          break;
+        case "most-commented":
+          response = await blogService.getAllBlogs(currentPage, 10, "comments.size,desc");
+          break;
+        default:
+          response = await blogService.getTrendingBlogs(currentPage);
       }
 
-      if (response.data.success) {
-        const newPosts = response.data.data.content.map(post => ({
+      if (response?.data?.success) {
+        const newPosts = response.data.data.content.map((post: BlogDTO) => ({
           ...post,
           showComments: post.id === selectedPost,
           commentCount: post.comments?.length || 0
-        }))
-        setPosts(prev => resetPage ? newPosts : [...prev, ...newPosts])
-        setPage(prev => resetPage ? 1 : prev + 1)
-        setHasMore(newPosts.length > 0)
+        }));
+        
+        // Check if we have more pages
+        const hasNextPage = !response.data.data.last;
+        
+        // Store all posts for client-side filtering
+        setAllPosts(prev => resetPage ? newPosts : [...prev, ...newPosts]);
+        setHasMore(hasNextPage);
+        setPage(prev => resetPage ? 1 : prev + 1);
+        
+        // If there's a search query active, filter the posts
+        if (searchQuery.trim()) {
+          filterPosts();
+        } else {
+          // Otherwise display all fetched posts directly
+          setFilteredPosts(prev => resetPage ? newPosts : [...prev, ...newPosts]);
+        }
       }
     } catch (error) {
-      console.error("Error fetching posts:", error)
+      console.error("Error fetching posts:", error);
       toast({
         title: "Error loading posts",
         description: "Failed to load posts. Please try again.",
         variant: "destructive"
-      })
+      });
+      // Even if there's an error, we should set these to avoid showing misleading messages
+      setFilteredPosts([]);
+      setHasMore(false);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const debouncedSearch = useCallback(
-    debounce((query: string) => {
-      if (query !== searchQuery) {
-        setSearchQuery(query)
-        fetchPosts(true)
+  // Create a separate filter function
+  const filterPosts = useCallback(() => {
+    if (!searchQuery.trim()) {
+      // If no search query, use all posts
+      setFilteredPosts([...allPosts]);
+      return;
+    }
+    
+    // Apply search filter
+    const query = searchQuery.toLowerCase();
+    const filtered = allPosts.filter(post => 
+      post.title.toLowerCase().includes(query) || 
+      post.content.toLowerCase().includes(query) ||
+      (post.authorUsername && post.authorUsername.toLowerCase().includes(query)) ||
+      (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query)))
+    );
+    
+    // Apply sorting
+    const sortedFiltered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "trending":
+          return b.likes - a.likes;
+        case "latest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "most-commented":
+          return (b.comments?.length || 0) - (a.comments?.length || 0);
+        default:
+          return 0;
       }
-    }, 500),
-    []
-  )
+    });
+    
+    setFilteredPosts(sortedFiltered);
+  }, [allPosts, searchQuery, sortBy]);
 
+  // Replace the existing filterAndSortPosts useEffect
   useEffect(() => {
-    fetchPosts(true)
-  }, [sortBy])
+    filterPosts();
+  }, [filterPosts]);
+
+  // Update handleSearch to maintain hasMore flag
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    // When searching, we want to show filtered results from all fetched posts,
+    // but we don't want to override the hasMore flag
+    filterPosts();
+  };
 
   const handleSortChange = (value: SortOption) => {
     setSortBy(value)
-    setPage(0)
-    setPosts([])
-  }
-
-  const handleSearch = (value: string) => {
-    setSearchQuery(value)
-    if (!value.trim()) {
-      setPage(0)
-      setPosts([])
+    // If we need new data based on sort, fetch it
+    if (allPosts.length === 0) {
       fetchPosts(true)
-    } else {
-      debouncedSearch(value)
     }
+    // Otherwise just rely on the effect to resort
   }
 
   const handleCreateSuccess = () => {
@@ -161,24 +167,6 @@ export function TrendingPostList() {
       description: "Your post has been created successfully!",
     })
   }
-
-  const handleLikePost = async (postId: string) => {
-    try {
-      await blogService.likeBlog(postId)
-      fetchPosts(true)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to like the post. Please try again.",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const toggleComments = (postId: string) => {
-    setSelectedPost(prevId => prevId === postId ? null : postId)
-  }
-
   const handleCommentAdded = async (postId: string) => {
     try {
       const response = await blogService.getBlogById(postId)
@@ -187,7 +175,7 @@ export function TrendingPostList() {
           post.id === postId 
             ? { 
                 ...post, 
-                commentCount: (post.commentCount || 0) + 1,
+                commentCount: ((post as any).commentCount || 0) + 1,
                 comments: response.data.data.comments 
               }
             : post
@@ -196,6 +184,27 @@ export function TrendingPostList() {
     } catch (error) {
       console.error("Error updating comment count:", error)
     }
+  }
+
+  // Add this useEffect to fetch posts on component mount
+  useEffect(() => {
+    // Reset static posts and load real data from API
+    setAllPosts([]);
+    setFilteredPosts([]);
+    fetchPosts(true);
+  }, []); // Empty dependency array means it runs once on mount
+
+  // Keep your existing effect for sort changes
+  useEffect(() => {
+    if (sortBy) { // Only fetch if sortBy has a value (skip initial render)
+      fetchPosts(true);
+    }
+  }, [sortBy]);
+
+  // Handle filter change from the TrendingFilter component
+  const handleFilterChange = (value: SortOption) => {
+    setSortBy(value);
+    fetchPosts(true);
   }
 
   return (
@@ -218,37 +227,16 @@ export function TrendingPostList() {
         </Button>
       </motion.div>
 
+      <TrendingFilter 
+        activeSort={sortBy} 
+        onFilterChange={handleFilterChange} 
+      />
+
       <motion.div 
         className="flex flex-wrap gap-4 items-center bg-white/5 p-4 rounded-lg"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        <Select value={sortBy} onValueChange={handleSortChange}>
-          <SelectTrigger className="w-[180px] bg-white/10 border-white/20 text-white">
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent className="bg-white/10 backdrop-blur-sm border-white/20 rounded-lg">
-            <SelectItem 
-              value="trending" 
-              className="text-white hover:bg-white/10 focus:bg-white/10"
-            >
-              Trending
-            </SelectItem>
-            <SelectItem 
-              value="latest" 
-              className="text-white hover:bg-white/10 focus:bg-white/10"
-            >
-              Latest
-            </SelectItem>
-            <SelectItem 
-              value="most-commented" 
-              className="text-white hover:bg-white/10 focus:bg-white/10"
-            >
-              Most Commented
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
         <div className="flex-1 flex gap-2 relative">
           <Input
             placeholder="Search discussions..."
@@ -263,16 +251,16 @@ export function TrendingPostList() {
               className="absolute right-2 top-1/2 -translate-y-1/2"
               onClick={() => handleSearch("")}
             >
-              <X className="h-4 w-4" />
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
             </Button>
           )}
         </div>
       </motion.div>
 
       <AnimatePresence mode="popLayout">
-        {posts.length > 0 ? (
+        {filteredPosts.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post, index) => (
+            {filteredPosts.map((post, index) => (
               <motion.div
                 key={post.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -284,18 +272,21 @@ export function TrendingPostList() {
                 <PostCard 
                   post={post}
                   onLikeUpdate={(postId, newLikes, hasLiked) => {
-                    setPosts(currentPosts => 
-                      currentPosts.map(p => 
+                    // Update both allPosts and filteredPosts
+                    const updatePosts = (postList: BlogDTO[]) => 
+                      postList.map(p => 
                         p.id === postId 
                           ? {...p, likes: newLikes, hasLiked} 
                           : p
-                      )
-                    );
+                      );
+                    
+                    setAllPosts(updatePosts(allPosts));
+                    setFilteredPosts(updatePosts(filteredPosts));
                   }}
                 />
                 
                 <AnimatePresence>
-                  {post.showComments && (
+                  {(post as any).showComments && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
@@ -312,18 +303,27 @@ export function TrendingPostList() {
               </motion.div>
             ))}
           </div>
-        ) : !loading && (
+        ) : (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center py-12 text-gray-400"
           >
-            No posts found. {searchQuery ? "Try a different search term." : "Be the first to post!"}
+            {loading ? (
+              <div className="flex flex-col items-center">
+                <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                <p>Loading discussions...</p>
+              </div>
+            ) : (
+              <div>
+                No posts found. {searchQuery ? "Try a different search term." : "Be the first to post!"}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {hasMore && (
+      {(hasMore && !searchQuery.trim()) && (
         <motion.div
           className="mt-8 flex flex-col items-center gap-4"
           initial={{ opacity: 0 }}
@@ -345,7 +345,7 @@ export function TrendingPostList() {
             )}
           </Button>
           <p className="text-gray-400 text-sm">
-            Showing {posts.length} discussions
+            Showing {filteredPosts.length} discussions
           </p>
         </motion.div>
       )}
@@ -354,6 +354,7 @@ export function TrendingPostList() {
         open={showCreateModal} 
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleCreateSuccess}
+        {...({} as any)}
       />
 
       {selectedPost && (

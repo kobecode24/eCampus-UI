@@ -22,23 +22,11 @@ const NavLinks = () => (
     <Link href="/dev-forum/trending" className="text-white hover:text-pink-400 transition-colors">
       Trending
     </Link>
-    <Link href="/dev-forum/latest" className="text-white hover:text-pink-400 transition-colors">
-      Latest
-    </Link>
-    <Link href="/dev-forum/categories" className="text-white hover:text-pink-400 transition-colors">
-      Categories
-    </Link>
-    <Link href="/dev-forum/courses" className="text-white hover:text-pink-400 transition-colors">
-      Courses
-    </Link>
     <Link href="/dev-forum/documentation" className="text-white hover:text-pink-400 transition-colors">
       Documentation
     </Link>
     <Link href="/dev-forum/pricing" className="text-white hover:text-pink-400 transition-colors">
       Pricing
-    </Link>
-    <Link href="/dev-forum/economics" className="text-white hover:text-pink-400 transition-colors">
-      Economics
     </Link>
     <Link href="/dev-forum/tokensphere" className="text-white hover:text-pink-400 transition-colors">
       Tokensphere

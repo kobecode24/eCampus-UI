@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BlogCommentDTO } from "@/app/types/comment"
+import { UserAvatar } from "@/components/user-avatar"
 
 interface CommentListProps {
   comments: BlogCommentDTO[];
@@ -20,6 +21,7 @@ interface CommentListProps {
   onDelete?: (commentId: string) => void;
   onEdit?: (commentId: string) => void;
   currentUserId?: string;
+  totalComments?: number;
 }
 
 export function CommentList({ 
@@ -29,115 +31,64 @@ export function CommentList({
   onLoadMore,
   onDelete,
   onEdit,
-  currentUserId 
+  currentUserId,
+  totalComments
 }: CommentListProps) {
+  
+  const shouldShowLoadMore = hasMore && 
+                            (totalComments ? totalComments >= 10 : comments.length >= 10) && 
+                            comments.length < (totalComments || Infinity);
+
   return (
     <div className="space-y-4">
-      <AnimatePresence mode="popLayout">
-        {comments.map((comment, index) => (
-          <motion.div
-            key={comment.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-            className="bg-white/5 p-4 rounded-lg shadow-lg backdrop-blur-sm"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    {comment.authorUsername[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h4 className="text-sm font-medium text-purple-400">
-                    {comment.authorUsername}
-                  </h4>
-                  <p className="text-xs text-gray-400">
-                    {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                  </p>
+      {comments.length === 0 && !loading ? (
+        <div className="text-center py-8 text-gray-400">
+          No comments yet. Be the first to comment!
+        </div>
+      ) : (
+        <div className="divide-y divide-white/10">
+          {comments.map((comment) => (
+            <div key={comment.id} className="py-4 first:pt-0">
+              <div className="flex items-start gap-3">
+                <UserAvatar 
+                  username={comment.authorUsername} 
+                  avatarUrl={comment.authorAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.authorUsername)}&background=random`}
+                  size="md"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-white">{comment.authorUsername}</span>
+                    <span className="text-xs text-gray-400">
+                      {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="text-gray-200 mt-1">{comment.content}</div>
                 </div>
               </div>
-
-              {currentUserId === comment.authorId && (onDelete || onEdit) && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-gray-900 border-gray-800">
-                    {onEdit && (
-                      <DropdownMenuItem
-                        onClick={() => onEdit(comment.id)}
-                        className="text-white hover:bg-gray-800"
-                      >
-                        Edit
-                      </DropdownMenuItem>
-                    )}
-                    {onDelete && (
-                      <DropdownMenuItem
-                        onClick={() => onDelete(comment.id)}
-                        className="text-red-400 hover:bg-gray-800"
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </div>
-
-            <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
-              {comment.content}
-            </p>
-
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/10">
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <ThumbsUp className="h-4 w-4 mr-1" />
-                <span className="text-xs">12</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                <ThumbsDown className="h-4 w-4" />
-              </Button>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      {hasMore && (
-        <motion.div
-          className="flex justify-center mt-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <Button
-            variant="outline"
+          ))}
+        </div>
+      )}
+      
+      {shouldShowLoadMore && (
+        <div className="text-center pt-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
             onClick={onLoadMore}
             disabled={loading}
-            className="text-white border-white/20 hover:bg-white/10"
+            className="text-white border-white/30 hover:bg-white/10"
           >
             {loading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading more comments...
-              </div>
+              <>
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                Loading...
+              </>
             ) : (
               "Load More Comments"
             )}
           </Button>
-        </motion.div>
-      )}
-
-      {!loading && comments.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-8 text-gray-400"
-        >
-          No comments yet. Be the first to comment!
-        </motion.div>
+        </div>
       )}
     </div>
   )
