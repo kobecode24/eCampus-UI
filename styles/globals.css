@@ -270,3 +270,21 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
+/* Add dark mode text colors for blog content */
+.dark .blog-content,
+.dark .blog-content p,
+.dark .blog-content h1,
+.dark .blog-content h2,
+.dark .blog-content h3,
+.dark .blog-content li {
+  color: #f1f5f9 !important; /* Light color for dark backgrounds */
+}
+
+/* Ensure blog content is visible on dark backgrounds even without dark mode */
+.bg-gradient-to-br .blog-content,
+.from-indigo-900 .blog-content,
+.to-pink-800 .blog-content,
+.bg-purple-900 .blog-content {
+  color: #f1f5f9 !important;
+}
+
