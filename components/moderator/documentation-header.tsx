@@ -15,23 +15,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useDocumentationStore } from "@/stores/useDocumentationStore"
 import { toast } from "@/components/ui/use-toast"
+import { documentationService } from "@/services/api"
 
-interface DocumentationHeaderProps {
-  collaborators?: number;
-}
-
-export function DocumentationHeader({ collaborators = 0 }: DocumentationHeaderProps) {
+export function DocumentationHeader() {
   // Use the documentation store
   const { 
     selectedDocumentation, 
     selectedSection, 
     updateSection, 
-    updateDocumentation 
+    updateDocumentation,
+    setSelectedSection,
+    fetchDocumentSections
   } = useDocumentationStore();
   
   const [isEditing, setIsEditing] = useState(false)
   const [localTitle, setLocalTitle] = useState<string>("")
-  
+
   // Update local title when selected section or documentation changes
   useEffect(() => {
     // Prioritize selected section title
@@ -131,11 +130,6 @@ export function DocumentationHeader({ collaborators = 0 }: DocumentationHeaderPr
             History
           </Button>
 
-          <Button size="sm" variant="ghost" className="text-indigo-300 hover:text-white hover:bg-indigo-700/30">
-            <Users className="h-4 w-4 mr-1" />
-            Collaborators ({collaborators})
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost" className="text-indigo-300 hover:text-white hover:bg-indigo-700/30">
@@ -159,20 +153,12 @@ export function DocumentationHeader({ collaborators = 0 }: DocumentationHeaderPr
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button size="sm" variant="ghost" className="text-indigo-300 hover:text-white hover:bg-indigo-700/30">
-            <Eye className="h-4 w-4 mr-1" />
-            Preview
-          </Button>
 
           <Button size="sm" variant="ghost" className="text-indigo-300 hover:text-white hover:bg-indigo-700/30">
             <Settings className="h-4 w-4 mr-1" />
             Settings
           </Button>
 
-          <Button size="sm" variant="default" className="bg-indigo-600 hover:bg-indigo-700 text-white">
-            <Save className="h-4 w-4 mr-1" />
-            Save
-          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -188,9 +174,6 @@ export function DocumentationHeader({ collaborators = 0 }: DocumentationHeaderPr
                 Export as Markdown
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-indigo-500/20" />
-              <DropdownMenuItem className="hover:bg-indigo-700/50 focus:bg-indigo-700/50">
-                Duplicate document
-              </DropdownMenuItem>
               <DropdownMenuItem className="hover:bg-indigo-700/50 focus:bg-indigo-700/50 text-red-400">
                 Delete document
               </DropdownMenuItem>

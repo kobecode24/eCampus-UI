@@ -461,15 +461,9 @@ export function EnhancedDocumentationSidebar() {
         </ScrollArea>
 
         {isExpanded ? (
-          <div className="p-3 border-t border-indigo-500/20">
+          <div className="p-7 border-t border-indigo-500/20">
             <div className="flex flex-col gap-1">
-              <EnhancedNavButton icon={<Home />} label="Dashboard" />
               <EnhancedNavButton icon={<BookOpen />} label="Documentation" isActive />
-              <EnhancedNavButton icon={<Users />} label="Collaborators" />
-              <EnhancedNavButton icon={<Shield />} label="Moderation" />
-              <EnhancedNavButton icon={<BarChart />} label="Analytics" />
-              <EnhancedNavButton icon={<HelpCircle />} label="Help" />
-              <EnhancedNavButton icon={<Settings />} label="Settings" />
             </div>
           </div>
         ) : (

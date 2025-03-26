@@ -839,6 +839,10 @@ const documentationService = {
   deleteDocumentation: (docId: string) =>
     api.delete(`/documentation/${docId}`, { headers: getAuthHeader() }),
 
+  // Delete section
+  deleteSection:  (sectionId : string ) =>
+    api.delete(`/documentation/sections/${sectionId}` , { headers: getAuthHeader() }),
+
   // Get documentation sections
   getDocumentationSections: (docId: string) =>
     api.get(`/documentation/${docId}/sections`, { headers: getAuthHeader() }),

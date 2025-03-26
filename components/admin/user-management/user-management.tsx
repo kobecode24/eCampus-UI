@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PlusCircle, Search } from "lucide-react"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
-import { AdminTopNav } from "@/components/admin/admin-top-nav"
 import { ForumHeader } from "@/components/forum-header"
 import { Toaster } from "@/components/ui/toaster"
 import { userService } from "@/services/api"
@@ -46,7 +45,6 @@ export function UserManagement() {
       <div className="flex h-[calc(100vh-4rem)]">
         <AdminSidebar open={sidebarOpen} setOpen={setSidebarOpen} />
         <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-          <AdminTopNav onMenuButtonClick={() => setSidebarOpen(true)} />
           <div className="container mx-auto max-w-7xl space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <h1 className="text-2xl md:text-3xl font-bold">User Management</h1>
