@@ -22,6 +22,7 @@ export interface AuthState {
   login: (credentials: { username: string; password: string }) => Promise<void>
   logout: () => void
   checkIsAdmin: () => boolean
+  updateAvatar: (avatarUrl: string) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -153,6 +154,17 @@ export const useAuthStore = create<AuthState>()(
             }
             return false
           })
+        },
+        updateAvatar: (avatarUrl: string) => {
+          const { user } = get();
+          if (user) {
+            set({ 
+              user: { 
+                ...user, 
+                avatar: avatarUrl 
+              } 
+            });
+          }
         }
       }),
       {

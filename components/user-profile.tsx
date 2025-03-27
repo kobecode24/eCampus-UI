@@ -77,13 +77,6 @@ export function UserProfile() {
           message: "The file size exceeds the maximum allowed limit of 2MB.",
           position: "topRight",
         });
-      } else {
-        iziToast.error({
-          title: "Error",
-          message: "An error occurred while uploading the avatar.",
-          position: "topRight",
-        });
-        console.error("Error uploading avatar:", error);
       }
     }
   };
