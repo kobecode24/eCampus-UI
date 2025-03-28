@@ -147,6 +147,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   updateUser: async (userId, userData) => {
     try {
+      // @ts-ignore
       await userService.updateUser(userId, userData)
       await get().fetchUsers()
       await get().fetchStatistics()

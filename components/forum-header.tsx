@@ -39,16 +39,18 @@ export function ForumHeader() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { user, isAuthenticated, loading, logout, fetchUser } = useAuthStore()
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isModerator, setIsModerator] = useState(false)
 
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
 
-  // Check for admin role whenever user data changes
+  // Check for admin and moderator roles whenever user data changes
   useEffect(() => {
     if (user && user.roles) {
       console.log("User roles:", user.roles); // Debug log
       
+      // Check for admin role
       const hasAdminRole = Array.isArray(user.roles) && user.roles.some((role: RoleType) => {
         if (typeof role === 'string') {
           return role === 'ADMIN' || role === 'ROLE_ADMIN';
@@ -58,10 +60,22 @@ export function ForumHeader() {
         return false;
       });
       
-      console.log("Is admin:", hasAdminRole); // Debug log
+      // Check for moderator role
+      const hasModeratorRole = Array.isArray(user.roles) && user.roles.some((role: RoleType) => {
+        if (typeof role === 'string') {
+          return role === 'MODERATOR' || role === 'ROLE_MODERATOR';
+        } else if (role && typeof role === 'object') {
+          return role.name === 'MODERATOR' || role.name === 'ROLE_MODERATOR';
+        }
+        return false;
+      });
+      
+      console.log("Is admin:", hasAdminRole, "Is moderator:", hasModeratorRole); // Debug log
       setIsAdmin(hasAdminRole);
+      setIsModerator(hasModeratorRole);
     } else {
       setIsAdmin(false);
+      setIsModerator(false);
     }
   }, [user]);
 
@@ -136,20 +150,20 @@ export function ForumHeader() {
                   </Link>
                 </DropdownMenuItem>
                 {isAdmin && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <Link href="/dev-forum/admin/users" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
-                        <Shield className="mr-2 h-4 w-4" />
-                        <span>Admin Dashboard</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/moderator/documentation" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        <span>Moderator Documentation</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem asChild>
+                    <Link href="/dev-forum/admin/users" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {(isAdmin || isModerator) && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/moderator/documentation" className="flex items-center hover:bg-[#2a3754] focus:bg-[#2a3754] cursor-pointer">
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      <span>Moderator Documentation</span>
+                    </Link>
+                  </DropdownMenuItem>
                 )}
                 <DropdownMenuItem 
                   onClick={handleLogout}
@@ -183,14 +197,14 @@ export function ForumHeader() {
                   </>
                 )}
                 {isAdmin && (
-                  <>
-                    <Link href="/dev-forum/admin" className="text-white hover:text-pink-400 transition-colors">
-                      Admin Dashboard
-                    </Link>
-                    <Link href="/moderator/documentation" className="text-white hover:text-pink-400 transition-colors">
-                      Moderator Documentation
-                    </Link>
-                  </>
+                  <Link href="/dev-forum/admin" className="text-white hover:text-pink-400 transition-colors">
+                    Admin Dashboard
+                  </Link>
+                )}
+                {(isAdmin || isModerator) && (
+                  <Link href="/moderator/documentation" className="text-white hover:text-pink-400 transition-colors">
+                    Moderator Documentation
+                  </Link>
                 )}
               </nav>
             </SheetContent>
